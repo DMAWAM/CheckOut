@@ -239,7 +239,7 @@
     <ConfirmDialog
       :open="showDeleteDialog"
       title="Turnier löschen"
-      :message="tournament ? `Willst du \"${tournament.name}\" wirklich löschen?` : ''"
+      :message="deleteMessage"
       confirm-label="Löschen"
       cancel-label="Abbrechen"
       tone="danger"
@@ -459,6 +459,10 @@ const confirmDelete = () => {
   if (!tournament.value) return
   showDeleteDialog.value = true
 }
+
+const deleteMessage = computed(() =>
+  tournament.value ? `Willst du "${tournament.value.name}" wirklich löschen?` : ''
+)
 
 const handleDelete = () => {
   if (!tournament.value) return
