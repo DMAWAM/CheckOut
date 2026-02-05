@@ -133,7 +133,7 @@
                     {{ formatDate(entry.match.endedAt) }}
                   </div>
                   <RouterLink
-                    :to="`/matches/${entry.match.id}`"
+                    :to="matchLink(entry.match.id)"
                     class="bg-primary text-primary-foreground rounded-xl px-4 py-2 text-xs font-bold shadow-sm hover:shadow-md transition-all"
                   >
                     Details
@@ -160,7 +160,7 @@
             </button>
             <button
               v-for="page in finishedPageNumbers"
-              :key="`page-${page}`"
+              :key="pageKey(page)"
               class="min-w-[38px] px-3 py-2 rounded-full border-2 text-xs font-bold transition-all"
               :class="finishedPage === page
                 ? 'bg-primary text-primary-foreground border-primary shadow-md'
@@ -195,11 +195,11 @@
           />
         </div>
         <div v-if="showGroupStandings" class="space-y-6">
-          <TournamentStandingsTable
-            v-for="group in groupStandingsList"
-            :key="`group-${group.index}`"
-            :title="group.title"
-            :rows="group.rows"
+        <TournamentStandingsTable
+          v-for="group in groupStandingsList"
+          :key="groupKey(group.index)"
+          :title="group.title"
+          :rows="group.rows"
             :player-name="playerName"
             :qualifier-count="qualifierCount"
           />
@@ -463,6 +463,10 @@ const confirmDelete = () => {
 const deleteMessage = computed(() =>
   tournament.value ? `Willst du "${tournament.value.name}" wirklich löschen?` : ''
 )
+
+const matchLink = (matchId: string) => `/matches/${matchId}`
+const pageKey = (page: number) => `page-${page}`
+const groupKey = (groupIndex: number) => `group-${groupIndex}`
 
 const handleDelete = () => {
   if (!tournament.value) return
