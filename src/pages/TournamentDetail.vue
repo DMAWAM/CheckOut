@@ -1,19 +1,28 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-20">
     <div class="bg-white border-b-2 border-border px-6 py-6 shadow-sm">
-      <div class="flex items-center gap-3 mb-4">
-        <button
-          @click="router.push('/tournaments')"
-          class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
-        >
-          <i class="pi pi-arrow-left text-xl" />
-        </button>
-        <div>
-          <h1 class="text-3xl font-bold text-foreground">{{ tournament?.name ?? 'Turnier' }}</h1>
-          <p class="text-sm text-muted-foreground">
-            {{ modeLabel }} • {{ tournamentStartingScore }} {{ tournament?.settings.doubleOut ? 'Double-Out' : 'Single-Out' }}
-          </p>
+      <div class="flex items-center justify-between gap-4 mb-4 flex-wrap">
+        <div class="flex items-center gap-3">
+          <button
+            @click="router.push('/tournaments')"
+            class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
+          >
+            <i class="pi pi-arrow-left text-xl" />
+          </button>
+          <div>
+            <h1 class="text-3xl font-bold text-foreground">{{ tournament?.name ?? 'Turnier' }}</h1>
+            <p class="text-sm text-muted-foreground">
+              {{ modeLabel }} • {{ tournamentStartingScore }} {{ tournament?.settings.doubleOut ? 'Double-Out' : 'Single-Out' }}
+            </p>
+          </div>
         </div>
+        <button
+          v-if="tournament"
+          @click="confirmDelete"
+          class="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground font-bold text-sm hover:opacity-90 transition-all"
+        >
+          Turnier löschen
+        </button>
       </div>
 
       <div class="flex gap-2 overflow-x-auto pb-2 -mx-6 px-6">
@@ -227,6 +236,16 @@
       :player-name="playerName"
       @close="closeMatchDetails"
     />
+    <ConfirmDialog
+      :open="showDeleteDialog"
+      title="Turnier löschen"
+      :message="tournament ? `Willst du \"${tournament.name}\" wirklich löschen?` : ''"
+      confirm-label="Löschen"
+      cancel-label="Abbrechen"
+      tone="danger"
+      @confirm="handleDelete"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>
 
@@ -243,6 +262,7 @@ import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
 import TournamentBracket from '@/components/TournamentBracket.vue'
 import MatchDetailsModal from '@/components/MatchDetailsModal.vue'
 import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -432,6 +452,19 @@ const formatDate = (value?: string) => {
   const day = date.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const time = date.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
   return `${day} · ${time}`
+}
+
+const showDeleteDialog = ref(false)
+const confirmDelete = () => {
+  if (!tournament.value) return
+  showDeleteDialog.value = true
+}
+
+const handleDelete = () => {
+  if (!tournament.value) return
+  tournamentsStore.deleteTournament(tournament.value.id)
+  showDeleteDialog.value = false
+  router.push('/tournaments')
 }
 
 const startMatch = (matchId: string) => {

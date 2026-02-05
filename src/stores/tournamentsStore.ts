@@ -340,6 +340,13 @@ export const useTournamentsStore = defineStore('tournaments', {
     calculateLeaderboards(tournamentId: string) {
       const resultEntries = this.results.filter((entry) => entry.tournamentId === tournamentId)
       return calculateLeaderboardsFromData(resultEntries)
+    },
+    deleteTournament(tournamentId: string) {
+      this.tournaments = this.tournaments.filter((entry) => entry.id !== tournamentId)
+      this.tournamentPlayers = this.tournamentPlayers.filter((entry) => entry.tournamentId !== tournamentId)
+      this.matches = this.matches.filter((entry) => entry.tournamentId !== tournamentId)
+      this.results = this.results.filter((entry) => entry.tournamentId !== tournamentId)
+      this.persist()
     }
   }
 })

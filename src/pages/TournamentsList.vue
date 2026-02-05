@@ -89,26 +89,39 @@
         <p class="text-sm text-muted-foreground">Noch keine Online-Turniere.</p>
       </div>
       <div v-else class="space-y-4">
-        <button
+        <div
           v-for="tournament in filteredOnlineTournaments"
           :key="tournament.id"
           @click="router.push(`/tournaments/online/${tournament.id}`)"
-          class="w-full bg-white border-2 border-border rounded-2xl p-5 text-left shadow-sm hover:shadow-md transition-all"
-          >
-            <div class="flex items-center justify-between">
+          @keydown.enter="router.push(`/tournaments/online/${tournament.id}`)"
+          role="button"
+          tabindex="0"
+          class="w-full bg-white border-2 border-border rounded-2xl p-5 text-left shadow-sm hover:shadow-md transition-all cursor-pointer"
+        >
+            <div class="flex items-center justify-between gap-3">
               <div>
                 <div class="text-lg font-bold text-foreground">{{ tournament.name }}</div>
                 <div class="text-xs text-muted-foreground font-semibold">
                   {{ modeLabel(tournament.mode) }} · {{ tournament.settings.doubleOut ? 'Double-Out' : 'Single-Out' }}
                 </div>
               </div>
-              <div class="text-xs font-semibold text-muted-foreground">{{ formatDate(tournament.date) }}</div>
+              <div class="flex items-center gap-2">
+                <div class="text-xs font-semibold text-muted-foreground">{{ formatDate(tournament.date) }}</div>
+                <button
+                  v-if="canDeleteOnline(tournament)"
+                  @click.stop="openDeleteDialog(tournament, 'online')"
+                  class="w-9 h-9 flex items-center justify-center rounded-xl border-2 border-border text-muted-foreground hover:text-destructive hover:border-destructive transition-all"
+                  type="button"
+                >
+                  <i class="pi pi-trash text-sm" />
+                </button>
+              </div>
             </div>
             <div class="mt-3 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
               <span class="px-2 py-1 rounded-full bg-primary/10 text-primary">online</span>
               <span class="px-2 py-1 rounded-full bg-muted text-muted-foreground">{{ tournament.status }}</span>
             </div>
-          </button>
+          </div>
         </div>
       </div>
 
@@ -120,27 +133,49 @@
       </div>
 
       <div v-else class="space-y-4">
-        <button
+        <div
           v-for="tournament in filteredTournaments"
           :key="tournament.id"
           @click="router.push(`/tournaments/${tournament.id}`)"
-          class="w-full bg-white border-2 border-border rounded-2xl p-5 text-left shadow-sm hover:shadow-md transition-all"
+          @keydown.enter="router.push(`/tournaments/${tournament.id}`)"
+          role="button"
+          tabindex="0"
+          class="w-full bg-white border-2 border-border rounded-2xl p-5 text-left shadow-sm hover:shadow-md transition-all cursor-pointer"
         >
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-3">
             <div>
               <div class="text-lg font-bold text-foreground">{{ tournament.name }}</div>
               <div class="text-xs text-muted-foreground font-semibold">
                 {{ modeLabel(tournament.mode) }} · {{ tournament.settings.doubleOut ? 'Double-Out' : 'Single-Out' }}
               </div>
             </div>
-            <div class="text-xs font-semibold text-muted-foreground">{{ formatDate(tournament.date) }}</div>
+            <div class="flex items-center gap-2">
+              <div class="text-xs font-semibold text-muted-foreground">{{ formatDate(tournament.date) }}</div>
+              <button
+                @click.stop="openDeleteDialog(tournament, 'local')"
+                class="w-9 h-9 flex items-center justify-center rounded-xl border-2 border-border text-muted-foreground hover:text-destructive hover:border-destructive transition-all"
+                type="button"
+              >
+                <i class="pi pi-trash text-sm" />
+              </button>
+            </div>
           </div>
           <div class="mt-3 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             <span class="px-2 py-1 rounded-full bg-primary/10 text-primary">{{ tournament.status }}</span>
           </div>
-        </button>
+        </div>
       </div>
     </div>
+    <ConfirmDialog
+      :open="Boolean(deleteTarget)"
+      title="Turnier löschen"
+      :message="deleteMessage"
+      confirm-label="Löschen"
+      cancel-label="Abbrechen"
+      tone="danger"
+      @confirm="confirmDelete"
+      @cancel="deleteTarget = null"
+    />
   </div>
 </template>
 
@@ -149,10 +184,13 @@ import { useRouter } from 'vue-router'
 import { computed, onMounted, ref } from 'vue'
 import { useTournamentsStore } from '@/stores/tournamentsStore'
 import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
+import { useAuthStore } from '@/stores/authStore'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const router = useRouter()
 const tournamentsStore = useTournamentsStore()
 const onlineTournamentsStore = useOnlineTournamentsStore()
+const auth = useAuthStore()
 const tournaments = computed(() => tournamentsStore.tournaments)
 const onlineTournaments = computed(() => onlineTournamentsStore.tournaments)
 const statusFilter = ref<'all' | 'active' | 'finished'>('all')
@@ -194,4 +232,37 @@ const filteredTournaments = computed(() => {
   if (statusFilter.value === 'all') return tournaments.value
   return tournaments.value.filter((tournament) => normalizeStatus(tournament.status) === statusFilter.value)
 })
+
+const canDeleteOnline = (tournament: { createdBy?: string }) => tournament.createdBy === auth.session?.user?.id
+
+const deleteTarget = ref<{ id: string; name: string; scope: 'local' | 'online' } | null>(null)
+const deleteError = ref('')
+const deleteMessage = computed(() => {
+  if (!deleteTarget.value) return ''
+  const base = `Willst du "${deleteTarget.value.name}" wirklich löschen?`
+  return deleteError.value ? `${base}\n${deleteError.value}` : base
+})
+
+const openDeleteDialog = (
+  tournament: { id: string; name: string },
+  scope: 'local' | 'online'
+) => {
+  deleteError.value = ''
+  deleteTarget.value = { id: tournament.id, name: tournament.name, scope }
+}
+
+const confirmDelete = async () => {
+  if (!deleteTarget.value) return
+  deleteError.value = ''
+  try {
+    if (deleteTarget.value.scope === 'local') {
+      tournamentsStore.deleteTournament(deleteTarget.value.id)
+    } else {
+      await onlineTournamentsStore.deleteTournament(deleteTarget.value.id)
+    }
+    deleteTarget.value = null
+  } catch (err) {
+    deleteError.value = (err as Error).message ?? 'Turnier konnte nicht gelöscht werden.'
+  }
+}
 </script>

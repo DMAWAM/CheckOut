@@ -216,6 +216,8 @@ create policy "tournaments_insert" on tournaments for insert
 to authenticated with check (created_by = auth.uid());
 create policy "tournaments_update" on tournaments for update
 to authenticated using (created_by = auth.uid());
+create policy "tournaments_delete" on tournaments for delete
+to authenticated using (created_by = auth.uid());
 
 -- Tournament players: readable by members; insert via RPC only
 drop policy if exists "tournament_players_read" on tournament_players;

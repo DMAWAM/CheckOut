@@ -666,6 +666,25 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
           this.tournaments[index] = { ...this.tournaments[index], status: data }
         }
       }
+    },
+    async deleteTournament(tournamentId: string) {
+      const auth = useAuthStore()
+      if (!auth.session?.user) {
+        throw new Error('Bitte zuerst einloggen')
+      }
+      const { error } = await supabase.from('tournaments').delete().eq('id', tournamentId)
+      if (error) {
+        throw new Error(error.message)
+      }
+      if (this.currentTournament?.id === tournamentId) {
+        this.currentTournament = null
+        this.players = []
+        this.matches = []
+        this.results = []
+        this.loginCodes = []
+        this.inviteCode = null
+      }
+      this.tournaments = this.tournaments.filter((entry) => entry.id !== tournamentId)
     }
   }
 })
