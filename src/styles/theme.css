@@ -1,0 +1,201 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+
+  /* Light Mode - Helles, freundliches Design */
+  --background: #ffffff;
+  --foreground: #1e293b;
+  --card: #f8fafc;
+  --card-foreground: #1e293b;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
+
+  /* Dart-inspirierte Akzentfarben */
+  --primary: #16a34a; /* Saftiges Grün - Treffer */
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #334155;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --accent: #dc2626; /* Kräftiges Rot - Checkout/Wichtig */
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  /* Borders & Inputs */
+  --border: #e2e8f0;
+  --input: transparent;
+  --input-background: #ffffff;
+  --switch-background: #cbd5e1;
+  --ring: #16a34a;
+
+  /* Font weights */
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+
+  /* Charts */
+  --chart-1: #16a34a;
+  --chart-2: #dc2626;
+  --chart-3: #f59e0b;
+  --chart-4: #3b82f6;
+  --chart-5: #8b5cf6;
+
+  /* Border radius */
+  --radius: 0.75rem;
+
+  /* Sidebar */
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #16a34a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e8f0;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #16a34a;
+
+  /* Dart-specific colors */
+  --dart-green: #16a34a;
+  --dart-red: #dc2626;
+  --dart-gold: #f59e0b;
+  --dart-navy: #1e293b;
+  --dart-active: #059669;
+  --dart-board-bg: #f8fafc;
+}
+
+.dark {
+  /* Dark Mode bleibt als Fallback, wird aber nicht verwendet */
+  --background: #1a1a1f;
+  --foreground: #f5f5f5;
+  --card: #25252b;
+  --card-foreground: #f5f5f5;
+  --popover: #25252b;
+  --popover-foreground: #f5f5f5;
+  --primary: #22c55e;
+  --primary-foreground: #0a0a0c;
+  --secondary: #3b3b45;
+  --secondary-foreground: #f5f5f5;
+  --muted: #2e2e35;
+  --muted-foreground: #9ca3af;
+  --accent: #ef4444;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #3b3b45;
+  --input: #2e2e35;
+  --ring: #22c55e;
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+  --chart-1: #22c55e;
+  --chart-2: #ef4444;
+  --chart-3: #f59e0b;
+  --chart-4: #3b82f6;
+  --chart-5: #8b5cf6;
+  --sidebar: #1a1a1f;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #22c55e;
+  --sidebar-primary-foreground: #0a0a0c;
+  --sidebar-accent: #25252b;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: #3b3b45;
+  --sidebar-ring: #22c55e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Dart colors */
+  --color-dart-green: var(--dart-green);
+  --color-dart-red: var(--dart-red);
+  --color-dart-gold: var(--dart-gold);
+  --color-dart-navy: var(--dart-navy);
+  --color-dart-active: var(--dart-active);
+  --color-dart-board-bg: var(--dart-board-bg);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+}

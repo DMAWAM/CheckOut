@@ -1,0 +1,57 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: linear-gradient(135deg, #ffffff 0%, var(--color-surface-alt) 100%);
+  color: var(--color-text);
+}
+
+button,
+input {
+  font-family: var(--font-family);
+}
+
+#app {
+  min-height: 100vh;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-4);
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: var(--space-3);
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.page {
+  min-height: 100vh;
+  padding-bottom: var(--space-8);
+}
