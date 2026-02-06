@@ -26,6 +26,7 @@
                 :key="match.id"
                 class="bracket-match"
               >
+                <div class="bracket-game-number">Spiel {{ matchNumber(match) }}</div>
                 <div class="bracket-row" :class="winnerClass(match, match.playerAId)">
                   <span class="bracket-player">{{ playerLabel(match.playerAId) }}</span>
                   <span v-if="match.winnerId === match.playerAId" class="bracket-win">W</span>
@@ -102,6 +103,27 @@ const resultsByMatch = computed(() => {
   return map
 })
 
+const matchNumberMap = computed(() => {
+  const map = new Map<string, number>()
+  let current = 1
+  rounds.value.forEach((round) => {
+    round.matches.forEach((match) => {
+      if (!map.has(match.id)) {
+        map.set(match.id, current)
+        current += 1
+      }
+    })
+  })
+  return map
+})
+
+const matchNumber = (match: TournamentMatch) => {
+  if (match.id.startsWith('game-')) {
+    return match.id.replace('game-', '')
+  }
+  return matchNumberMap.value.get(match.id) ?? '?'
+}
+
 const matchScore = (match: TournamentMatch) => {
   const result = resultsByMatch.value.get(match.id)
   if (!result) return ''
@@ -123,13 +145,14 @@ const roundPairs = (matches: TournamentMatch[]) => {
 }
 
 const roundLabel = (index: number, total: number) => {
+  const firstRound = rounds.value[0]
+  const firstRoundSize = firstRound ? firstRound.matches.length * 2 : 0
+  const size = firstRoundSize / Math.pow(2, index)
+  if (size >= 4) return `Top ${size}`
   const remaining = total - index
   if (remaining === 1) return 'Finale'
   if (remaining === 2) return 'Halbfinale'
-  if (remaining === 3) return 'Viertelfinale'
-  if (remaining === 4) return 'Achtelfinale'
-  if (remaining === 5) return 'Sechzehntelfinale'
-  return `Runde ${index + 1}`
+  return 'Finale'
 }
 
 const statusLabel = (status: string) => {
@@ -144,7 +167,12 @@ const winnerClass = (match: TournamentMatch, playerId: string) => {
 }
 
 const playerLabel = (playerId: string, fallbackId?: string) => {
-  if (!playerId) return 'TBD'
+  if (!playerId || playerId === 'TBD') return 'TBD'
+  if (playerId.startsWith('winner:')) {
+    const ref = playerId.replace('winner:', '')
+    const number = ref.startsWith('game-') ? ref.replace('game-', '') : matchNumberMap.value.get(ref)
+    return number ? `Sieger Spiel ${number}` : 'Sieger'
+  }
   if (fallbackId && playerId === fallbackId) return `${props.playerName(playerId)} (Freilos)`
   return props.playerName(playerId)
 }
@@ -249,6 +277,19 @@ const championName = computed(() => {
   padding: 14px 14px 18px;
   min-height: 104px;
   backdrop-filter: blur(6px);
+}
+
+.bracket-game-number {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  background: rgba(15, 23, 42, 0.9);
+  color: rgba(226, 232, 240, 0.85);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 .bracket-row {

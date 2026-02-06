@@ -586,17 +586,28 @@ const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) =
   const rounds = Math.max(1, Math.log2(size))
   const matches: TournamentMatch[] = []
   let order = 1
+  let gameNumber = 1
+  let previousRoundIds: string[] = []
+
   for (let round = 1; round <= rounds; round += 1) {
     const matchCount = size / Math.pow(2, round)
+    const currentRoundIds: string[] = []
     for (let index = 0; index < matchCount; index += 1) {
       let playerAId = 'TBD'
       let playerBId = 'TBD'
       if (round === 1) {
         playerAId = seeds[index] ?? 'TBD'
         playerBId = seeds[size - 1 - index] ?? 'TBD'
+      } else {
+        const left = previousRoundIds[index * 2]
+        const right = previousRoundIds[index * 2 + 1]
+        playerAId = left ? `winner:${left}` : 'TBD'
+        playerBId = right ? `winner:${right}` : 'TBD'
       }
+      const id = `game-${gameNumber}`
+      currentRoundIds.push(id)
       matches.push({
-        id: `placeholder-${tournamentIdValue}-${round}-${index}`,
+        id,
         tournamentId: tournamentIdValue,
         phase: 'knockout',
         round,
@@ -605,7 +616,9 @@ const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) =
         playerBId,
         status: 'pending'
       })
+      gameNumber += 1
     }
+    previousRoundIds = currentRoundIds
   }
   return matches
 }
@@ -617,17 +630,46 @@ const knockoutSeedIds = computed(() => {
 })
 
 const knockoutMatchesForView = computed(() => {
-  if (knockoutMatches.value.length > 0) return knockoutMatches.value
   if (!tournament.value) return knockoutMatches.value
   const seedIds = knockoutSeedIds.value
   if (seedIds.length === 0) return knockoutMatches.value
-  return buildPlaceholderMatches(seedIds, tournamentId.value ?? 'preview')
+  const placeholder = buildPlaceholderMatches(seedIds, tournamentId.value ?? 'preview')
+  if (knockoutMatches.value.length === 0) return placeholder
+
+  const placeholderByRound = new Map<number, TournamentMatch[]>()
+  placeholder.forEach((match) => {
+    const list = placeholderByRound.get(match.round) ?? []
+    list.push(match)
+    placeholderByRound.set(match.round, list)
+  })
+  placeholderByRound.forEach((list) => list.sort((a, b) => a.order - b.order))
+
+  const actualByRound = new Map<number, TournamentMatch[]>()
+  knockoutMatches.value.forEach((match) => {
+    const list = actualByRound.get(match.round) ?? []
+    list.push(match)
+    actualByRound.set(match.round, list)
+  })
+  actualByRound.forEach((list) => list.sort((a, b) => a.order - b.order))
+
+  const merged = [...placeholder]
+  actualByRound.forEach((list, round) => {
+    const placeholders = placeholderByRound.get(round) ?? []
+    list.forEach((match, index) => {
+      const target = placeholders[index]
+      if (!target) {
+        merged.push(match)
+        return
+      }
+      const targetIndex = merged.findIndex((entry) => entry.id === target.id)
+      if (targetIndex >= 0) merged[targetIndex] = match
+    })
+  })
+  return merged
 })
 
-const bracketPlayerName = (playerId: string) => {
-  if (playerId === 'TBD') return 'TBD'
-  return placeholderNameMap.value.get(playerId) ?? playerName(playerId)
-}
+const bracketPlayerName = (playerId: string) =>
+  placeholderNameMap.value.get(playerId) ?? playerName(playerId)
 
 const inviteCode = ref('')
 const scheduleError = ref('')
