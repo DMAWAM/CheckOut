@@ -267,7 +267,7 @@
             </button>
             <button
               v-for="page in finishedPageNumbers"
-              :key="`page-${page}`"
+              :key="pageKey(page)"
               class="min-w-[38px] px-3 py-2 rounded-full border-2 text-xs font-bold transition-all"
               :class="finishedPage === page
                 ? 'bg-primary text-primary-foreground border-primary shadow-md'
@@ -291,38 +291,78 @@
       </div>
 
       <div v-else-if="activeTab === 'standings'" class="space-y-6">
-        <div v-if="showKnockoutBracket">
-          <TournamentBracket
-            :matches="knockoutMatches"
-            :player-name="playerName"
-            :results="results"
-            :show-details="true"
-            @details="openMatchDetails"
-            title="K.O.-Baum"
-          />
-        </div>
-        <div v-if="showGroupStandings" class="space-y-6">
+        <template v-if="isCombined">
+          <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-bold text-foreground">Gruppenphase</h2>
+              <span class="text-xs text-muted-foreground">Round Robin</span>
+            </div>
+            <div v-if="showGroupStandings" class="space-y-6">
+              <TournamentStandingsTable
+                v-for="group in groupStandingsList"
+                :key="groupKey(group.index)"
+                :title="group.title"
+                :rows="group.rows"
+                :player-name="playerName"
+                :qualifier-count="qualifierCount"
+              />
+            </div>
+            <div v-else class="text-sm text-muted-foreground">Noch keine Gruppenspiele gespielt.</div>
+          </div>
+
+          <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-bold text-foreground">K.O.-Phase</h2>
+              <span class="text-xs text-muted-foreground">Finalrunde</span>
+            </div>
+            <div v-if="showKnockoutBracket">
+              <TournamentBracket
+                :matches="knockoutMatches"
+                :player-name="playerName"
+                :results="results"
+                :show-details="true"
+                @details="openMatchDetails"
+                title="K.O.-Baum"
+              />
+            </div>
+            <div v-else class="text-sm text-muted-foreground">Noch keine K.O.-Spiele vorhanden.</div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div v-if="showKnockoutBracket">
+            <TournamentBracket
+              :matches="knockoutMatches"
+              :player-name="playerName"
+              :results="results"
+              :show-details="true"
+              @details="openMatchDetails"
+              title="K.O.-Baum"
+            />
+          </div>
+          <div v-if="showGroupStandings" class="space-y-6">
+            <TournamentStandingsTable
+              v-for="group in groupStandingsList"
+              :key="groupKey(group.index)"
+              :title="group.title"
+              :rows="group.rows"
+              :player-name="playerName"
+              :qualifier-count="qualifierCount"
+            />
+          </div>
           <TournamentStandingsTable
-            v-for="group in groupStandingsList"
-            :key="`group-${group.index}`"
-            :title="group.title"
-            :rows="group.rows"
+            v-if="showFinalStandings"
+            title="Schlussrangliste"
+            :rows="finalStandings"
             :player-name="playerName"
-            :qualifier-count="qualifierCount"
           />
-        </div>
-        <TournamentStandingsTable
-          v-if="showFinalStandings"
-          title="Schlussrangliste"
-          :rows="finalStandings"
-          :player-name="playerName"
-        />
-        <div
-          v-if="!showGroupStandings && !showFinalStandings && !showKnockoutBracket"
-          class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
-        >
-          Noch keine Spiele gespielt.
-        </div>
+          <div
+            v-if="!showGroupStandings && !showFinalStandings && !showKnockoutBracket"
+            class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
+          >
+            Noch keine Spiele gespielt.
+          </div>
+        </template>
       </div>
 
       <div v-else class="space-y-6">
@@ -515,6 +555,8 @@ const showKnockoutBracket = computed(() => {
   return true
 })
 
+const isCombined = computed(() => tournament.value?.mode === 'combined')
+
 const inviteCode = ref('')
 const scheduleError = ref('')
 const newPlayersInput = ref('')
@@ -633,6 +675,9 @@ const formatDate = (value?: string) => {
   const time = date.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
   return `${day} · ${time}`
 }
+
+const pageKey = (page: number) => `page-${page}`
+const groupKey = (groupIndex: number) => `group-${groupIndex}`
 
 const showDeleteDialog = ref(false)
 const deleteError = ref('')

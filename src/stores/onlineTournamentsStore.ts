@@ -277,6 +277,14 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         .select('*')
         .eq('tournament_id', tournamentId)
 
+      const groupIndexMap = new Map<string, number>()
+      matches?.forEach((row: any) => {
+        if (row.phase !== 'round_robin') return
+        const index = row.group_index ?? 0
+        if (row.player_a_id) groupIndexMap.set(row.player_a_id, index)
+        if (row.player_b_id) groupIndexMap.set(row.player_b_id, index)
+      })
+
       this.currentTournament = {
         ...tournament,
         createdBy: tournament.created_by,
@@ -285,11 +293,12 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       this.players =
         (playerRows ?? []).map((row: any) => {
           const profile = profileMap.get(row.player_id)
+          const inferredGroupIndex = groupIndexMap.get(row.player_id)
           return {
             id: row.player_id,
             name: profile?.display_name ?? profile?.username ?? row.player_id,
             username: profile?.username ?? row.player_id,
-            groupIndex: row.group_index ?? 0
+            groupIndex: row.group_index ?? inferredGroupIndex ?? 0
           }
         })
       this.matches =

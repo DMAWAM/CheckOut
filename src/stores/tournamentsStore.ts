@@ -64,10 +64,21 @@ export const useTournamentsStore = defineStore('tournaments', {
       state.tournaments.find((tournament) => tournament.id === tournamentId),
     getTournamentPlayers: (state) => (tournamentId: string) =>
       state.tournamentPlayers.filter((entry) => entry.tournamentId === tournamentId).map((entry) => entry.playerId),
-    getTournamentPlayersByGroup: (state) => (tournamentId: string, groupIndex: number) =>
-      state.tournamentPlayers
+    getTournamentPlayersByGroup: (state) => (tournamentId: string, groupIndex: number) => {
+      const direct = state.tournamentPlayers
         .filter((entry) => entry.tournamentId === tournamentId && (entry.groupIndex ?? 0) === groupIndex)
-        .map((entry) => entry.playerId),
+        .map((entry) => entry.playerId)
+      if (direct.length > 0) return direct
+      const inferred = new Set<string>()
+      state.matches.forEach((match) => {
+        if (match.tournamentId !== tournamentId) return
+        if (match.phase !== 'round_robin') return
+        if ((match.groupIndex ?? 0) !== groupIndex) return
+        inferred.add(match.playerAId)
+        inferred.add(match.playerBId)
+      })
+      return Array.from(inferred)
+    },
     getTournamentMatches: (state) => (tournamentId: string) =>
       state.matches
         .filter((match) => match.tournamentId === tournamentId)

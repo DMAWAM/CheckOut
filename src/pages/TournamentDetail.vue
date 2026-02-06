@@ -184,38 +184,78 @@
       </div>
 
       <div v-else-if="activeTab === 'standings'" class="space-y-6">
-        <div v-if="showKnockoutBracket">
-          <TournamentBracket
-            :matches="knockoutMatches"
+        <template v-if="isCombined">
+          <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-bold text-foreground">Gruppenphase</h2>
+              <span class="text-xs text-muted-foreground">Round Robin</span>
+            </div>
+            <div v-if="showGroupStandings" class="space-y-6">
+              <TournamentStandingsTable
+                v-for="group in groupStandingsList"
+                :key="groupKey(group.index)"
+                :title="group.title"
+                :rows="group.rows"
+                :player-name="playerName"
+                :qualifier-count="qualifierCount"
+              />
+            </div>
+            <div v-else class="text-sm text-muted-foreground">Noch keine Gruppenspiele gespielt.</div>
+          </div>
+
+          <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-bold text-foreground">K.O.-Phase</h2>
+              <span class="text-xs text-muted-foreground">Finalrunde</span>
+            </div>
+            <div v-if="showKnockoutBracket">
+              <TournamentBracket
+                :matches="knockoutMatches"
+                :player-name="playerName"
+                :results="tournamentResults"
+                :show-details="true"
+                @details="openMatchDetails"
+                title="K.O.-Baum"
+              />
+            </div>
+            <div v-else class="text-sm text-muted-foreground">Noch keine K.O.-Spiele vorhanden.</div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div v-if="showKnockoutBracket">
+            <TournamentBracket
+              :matches="knockoutMatches"
+              :player-name="playerName"
+              :results="tournamentResults"
+              :show-details="true"
+              @details="openMatchDetails"
+              title="K.O.-Baum"
+            />
+          </div>
+          <div v-if="showGroupStandings" class="space-y-6">
+            <TournamentStandingsTable
+              v-for="group in groupStandingsList"
+              :key="groupKey(group.index)"
+              :title="group.title"
+              :rows="group.rows"
+              :player-name="playerName"
+              :qualifier-count="qualifierCount"
+            />
+          </div>
+          <TournamentStandingsTable
+            v-if="showFinalStandings"
+            title="Schlussrangliste"
+            :rows="finalStandings"
             :player-name="playerName"
-            :results="tournamentResults"
-            :show-details="true"
-            @details="openMatchDetails"
-            title="K.O.-Baum"
           />
-        </div>
-        <div v-if="showGroupStandings" class="space-y-6">
-        <TournamentStandingsTable
-          v-for="group in groupStandingsList"
-          :key="groupKey(group.index)"
-          :title="group.title"
-          :rows="group.rows"
-            :player-name="playerName"
-            :qualifier-count="qualifierCount"
-          />
-        </div>
-        <TournamentStandingsTable
-          v-if="showFinalStandings"
-          title="Schlussrangliste"
-          :rows="finalStandings"
-          :player-name="playerName"
-        />
-        <div
-          v-if="!showGroupStandings && !showFinalStandings && !showKnockoutBracket"
-          class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
-        >
-          Noch keine Spiele gespielt.
-        </div>
+          <div
+            v-if="!showGroupStandings && !showFinalStandings && !showKnockoutBracket"
+            class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
+          >
+            Noch keine Spiele gespielt.
+          </div>
+        </template>
       </div>
 
       <div v-else class="space-y-6">
@@ -432,6 +472,8 @@ const showKnockoutBracket = computed(() => {
   if (tournament.value.mode === 'round_robin') return false
   return true
 })
+
+const isCombined = computed(() => tournament.value?.mode === 'combined')
 
 const playerName = (playerId: string) =>
   playersStore.players.find((player) => player.id === playerId)?.name ?? 'Unbekannt'
