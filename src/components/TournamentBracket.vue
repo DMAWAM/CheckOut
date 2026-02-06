@@ -14,12 +14,13 @@
           <div class="bracket-round-title">
             {{ roundLabel(index, rounds.length) }}
           </div>
-          <div class="bracket-matches">
+          <div class="bracket-matches" :style="roundContainerStyle(index)">
             <div
               v-for="(pair, pairIndex) in roundPairs(round.matches)"
               :key="`pair-${round.round}-${pairIndex}`"
               class="bracket-pair"
               :class="pair.length === 1 ? 'bracket-pair--single' : ''"
+              :style="pairStyle(index, pairIndex)"
             >
               <div
                 v-for="match in pair"
@@ -124,6 +125,48 @@ const matchNumber = (match: TournamentMatch) => {
   return matchNumberMap.value.get(match.id) ?? '?'
 }
 
+const matchHeight = 104
+const innerPairGap = 24
+const pairHeight = matchHeight * 2 + innerPairGap
+const baseGap = 32
+
+const pairLayouts = computed(() => {
+  const layouts: Array<{ tops: number[]; height: number }> = []
+  rounds.value.forEach((round, roundIndex) => {
+    const pairs = roundPairs(round.matches)
+    if (roundIndex === 0) {
+      const tops = pairs.map((_, idx) => idx * (pairHeight + baseGap))
+      const height = tops.length ? tops[tops.length - 1] + pairHeight : pairHeight
+      layouts.push({ tops, height })
+      return
+    }
+    const prev = layouts[roundIndex - 1]
+    const prevCenters = prev.tops.map((top) => top + pairHeight / 2)
+    const tops: number[] = []
+    for (let i = 0; i < pairs.length; i += 1) {
+      const left = prevCenters[i * 2]
+      const right = prevCenters[i * 2 + 1] ?? left
+      const center = (left + right) / 2
+      tops.push(center - pairHeight / 2)
+    }
+    const height = tops.length ? tops[tops.length - 1] + pairHeight : pairHeight
+    layouts.push({ tops, height })
+  })
+  return layouts
+})
+
+const roundContainerStyle = (index: number) => {
+  const layout = pairLayouts.value[index]
+  if (!layout) return {}
+  return { height: `${layout.height}px` }
+}
+
+const pairStyle = (roundIndex: number, pairIndex: number) => {
+  const layout = pairLayouts.value[roundIndex]
+  const top = layout?.tops[pairIndex] ?? 0
+  return { top: `${top}px` }
+}
+
 const matchScore = (match: TournamentMatch) => {
   const result = resultsByMatch.value.get(match.id)
   if (!result) return ''
@@ -148,10 +191,10 @@ const roundLabel = (index: number, total: number) => {
   const firstRound = rounds.value[0]
   const firstRoundSize = firstRound ? firstRound.matches.length * 2 : 0
   const size = firstRoundSize / Math.pow(2, index)
-  if (size >= 4) return `Top ${size}`
-  const remaining = total - index
-  if (remaining === 1) return 'Finale'
-  if (remaining === 2) return 'Halbfinale'
+  if (size >= 8) return `Top ${size}`
+  if (size === 4) return 'Halbfinale'
+  if (size === 2) return 'Finale'
+  if (total - index === 1) return 'Finale'
   return 'Finale'
 }
 
@@ -232,13 +275,13 @@ const championName = computed(() => {
 }
 
 .bracket-matches {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
+  position: relative;
+  min-width: 280px;
 }
 
 .bracket-pair {
-  position: relative;
+  position: absolute;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -267,6 +310,10 @@ const championName = computed(() => {
 
 .bracket-pair--single::before {
   display: none;
+}
+
+.bracket-pair--single {
+  min-height: 232px;
 }
 
 .bracket-match {
