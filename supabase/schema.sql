@@ -71,6 +71,14 @@ create table if not exists tournament_login_codes (
   unique(tournament_id, player_id)
 );
 
+create table if not exists friendships (
+  id uuid primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  friend_id uuid references auth.users(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique(user_id, friend_id)
+);
+
 -- Trigger to auto-create profile on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
@@ -196,6 +204,7 @@ alter table tournament_invites enable row level security;
 alter table tournament_matches enable row level security;
 alter table tournament_match_results enable row level security;
 alter table tournament_login_codes enable row level security;
+alter table friendships enable row level security;
 
 -- Profiles: readable by authenticated users, writable by owner
 create policy "profiles_read" on profiles for select
@@ -323,3 +332,15 @@ create policy "login_codes_insert" on tournament_login_codes for insert
 to authenticated with check (
   public.is_tournament_admin(tournament_login_codes.tournament_id)
 );
+
+create policy "friends_select" on friendships for select
+to authenticated using (user_id = auth.uid());
+
+create policy "friends_insert" on friendships for insert
+to authenticated with check (
+  user_id = auth.uid()
+  and friend_id <> auth.uid()
+);
+
+create policy "friends_delete" on friendships for delete
+to authenticated using (user_id = auth.uid());
