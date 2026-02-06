@@ -80,7 +80,7 @@
           </div>
           <div v-if="loadingStats" class="text-sm text-muted-foreground">Lade Statistiken…</div>
           <div v-else-if="statsCards.length === 0" class="text-sm text-muted-foreground">
-            Noch keine Online-Statistiken verfügbar.
+            Noch keine Statistiken verfügbar.
           </div>
           <div v-else class="grid gap-4">
             <div
@@ -98,6 +98,19 @@
             </div>
           </div>
         </div>
+
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <h2 class="text-lg font-bold text-foreground">Lokale Spieler</h2>
+            <span class="text-xs text-muted-foreground">Nur dieses Gerät</span>
+          </div>
+          <div v-if="localCards.length === 0" class="text-sm text-muted-foreground">
+            Noch keine lokalen Matches.
+          </div>
+          <div v-else class="grid gap-4">
+            <MatchPlayerStatsCard v-for="entry in localCards" :key="entry.playerId" :stat="entry" />
+          </div>
+        </div>
       </template>
     </div>
   </div>
@@ -112,16 +125,19 @@ import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 import { supabase } from '@/services/supabase'
 import MatchPlayerStatsCard from '@/components/MatchPlayerStatsCard.vue'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
+import { useMatchHistoryStore } from '@/stores/matchHistoryStore'
 
 const router = useRouter()
 const auth = useAuthStore()
 const friendsStore = useFriendsStore()
 const onlineStore = useOnlineTournamentsStore()
+const matchHistoryStore = useMatchHistoryStore()
 
 const friendInput = ref('')
 const friendError = ref('')
 const loadingStats = ref(false)
 const onlineResults = ref<Array<{ stats: any[] }>>([])
+const friendStatsRows = ref<any[]>([])
 
 const friends = computed(() => friendsStore.friends)
 
@@ -144,6 +160,13 @@ const loadStats = async () => {
     onlineResults.value = []
   } else {
     onlineResults.value = data ?? []
+  }
+  const { data: friendData, error: friendError } = await supabase.rpc('get_friend_stats')
+  if (friendError) {
+    console.warn(friendError)
+    friendStatsRows.value = []
+  } else {
+    friendStatsRows.value = friendData ?? []
   }
   loadingStats.value = false
 }
@@ -174,86 +197,140 @@ const numberValue = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-const buildStatsMap = () => {
-  const map = new Map<string, MatchPlayerSummary & { totalPoints: number; totalDarts: number }>()
+const emptyStats = (playerId: string, name: string): MatchPlayerSummary => ({
+  playerId,
+  name,
+  isWinner: false,
+  legsWon: 0,
+  legsLost: 0,
+  average: 0,
+  checkoutRate: 0,
+  checkoutAttempts: 0,
+  checkoutHits: 0,
+  doubleDarts: 0,
+  count100Plus: 0,
+  count140Plus: 0,
+  count180: 0,
+  totalDarts: 0,
+  totalPoints: 0,
+  highestCheckout: 0
+})
+
+const mergeStats = (target: MatchPlayerSummary, raw: any) => {
+  target.totalPoints += numberValue(raw.totalPoints ?? raw.total_points)
+  target.totalDarts += numberValue(raw.totalDarts ?? raw.total_darts)
+  target.checkoutAttempts += numberValue(raw.checkoutAttempts ?? raw.checkout_attempts)
+  target.checkoutHits += numberValue(raw.checkoutHits ?? raw.checkout_hits)
+  target.doubleDarts += numberValue(raw.doubleDarts ?? raw.double_darts)
+  target.count100Plus += numberValue(raw.count100Plus ?? raw.count_100_plus)
+  target.count140Plus += numberValue(raw.count140Plus ?? raw.count_140_plus)
+  target.count180 += numberValue(raw.count180 ?? raw.count_180)
+  target.highestCheckout = Math.max(target.highestCheckout, numberValue(raw.highestCheckout ?? raw.highest_checkout))
+  target.legsWon += numberValue(raw.legsWon ?? raw.legs_won)
+  target.legsLost += numberValue(raw.legsLost ?? raw.legs_lost)
+}
+
+const finalizeStats = (target: MatchPlayerSummary) => {
+  target.average = target.totalDarts === 0 ? 0 : (target.totalPoints / target.totalDarts) * 3
+  target.checkoutRate =
+    target.checkoutAttempts === 0 ? 0 : (target.checkoutHits / target.checkoutAttempts) * 100
+}
+
+const buildSelfOnlineStats = () => {
+  if (!auth.session?.user) return emptyStats('', 'Du')
+  const selfId = auth.session.user.id
+  const base = emptyStats(selfId, auth.profile?.displayName || auth.profile?.username || 'Du')
   for (const result of onlineResults.value) {
     const stats = Array.isArray(result.stats) ? result.stats : []
     for (const raw of stats) {
       const playerId = raw.playerId ?? raw.player_id
-      if (!playerId) continue
-      const current = map.get(playerId) ?? {
-        playerId,
-        name: raw.name ?? raw.displayName ?? 'Spieler',
-        isWinner: false,
-        legsWon: 0,
-        legsLost: 0,
-        average: 0,
-        checkoutRate: 0,
-        checkoutAttempts: 0,
-        checkoutHits: 0,
-        doubleDarts: 0,
-        count100Plus: 0,
-        count140Plus: 0,
-        count180: 0,
-        totalDarts: 0,
-        totalPoints: 0,
-        highestCheckout: 0
-      }
-      current.totalPoints += numberValue(raw.totalPoints ?? raw.total_points)
-      current.totalDarts += numberValue(raw.totalDarts ?? raw.total_darts)
-      current.checkoutAttempts += numberValue(raw.checkoutAttempts ?? raw.checkout_attempts)
-      current.checkoutHits += numberValue(raw.checkoutHits ?? raw.checkout_hits)
-      current.doubleDarts += numberValue(raw.doubleDarts ?? raw.double_darts)
-      current.count100Plus += numberValue(raw.count100Plus ?? raw.count_100_plus)
-      current.count140Plus += numberValue(raw.count140Plus ?? raw.count_140_plus)
-      current.count180 += numberValue(raw.count180 ?? raw.count_180)
-      current.highestCheckout = Math.max(
-        current.highestCheckout,
-        numberValue(raw.highestCheckout ?? raw.highest_checkout)
-      )
-      map.set(playerId, current)
+      if (playerId !== selfId) continue
+      mergeStats(base, raw)
     }
   }
+  finalizeStats(base)
+  return base
+}
 
-  for (const entry of map.values()) {
-    entry.average = entry.totalDarts === 0 ? 0 : (entry.totalPoints / entry.totalDarts) * 3
-    entry.checkoutRate =
-      entry.checkoutAttempts === 0 ? 0 : (entry.checkoutHits / entry.checkoutAttempts) * 100
+const localStatsMap = computed(() => {
+  const map = new Map<string, MatchPlayerSummary>()
+  for (const match of matchHistoryStore.matches) {
+    for (const stat of match.stats) {
+      const key = stat.name
+      const entry = map.get(key) ?? emptyStats(`local-${key}`, stat.name)
+      mergeStats(entry, stat)
+      map.set(key, entry)
+    }
   }
+  for (const entry of map.values()) {
+    finalizeStats(entry)
+  }
+  return map
+})
 
+const selfNames = computed(() => {
+  const names = [
+    auth.profile?.displayName,
+    auth.profile?.username,
+    auth.profile?.email?.split('@')[0]
+  ]
+  return names.filter(Boolean).map((name) => String(name).toLowerCase())
+})
+
+const buildSelfLocalStats = () => {
+  if (selfNames.value.length === 0) return null
+  let combined: MatchPlayerSummary | null = null
+  for (const [name, stat] of localStatsMap.value.entries()) {
+    if (!selfNames.value.includes(name.toLowerCase())) continue
+    if (!combined) {
+      combined = emptyStats(auth.session?.user?.id ?? 'local-self', auth.profile?.displayName || name)
+    }
+    mergeStats(combined, stat)
+  }
+  if (combined) {
+    finalizeStats(combined)
+  }
+  return combined
+}
+
+const buildFriendStatsMap = () => {
+  const map = new Map<string, MatchPlayerSummary>()
+  for (const row of friendStatsRows.value) {
+    const playerId = row.player_id
+    if (!playerId) continue
+    const entry = emptyStats(playerId, row.display_name ?? row.username ?? 'Freund')
+    mergeStats(entry, row)
+    finalizeStats(entry)
+    map.set(playerId, entry)
+  }
   return map
 }
 
 const statsCards = computed(() => {
   if (!auth.session?.user) return []
-  const map = buildStatsMap()
-  const self = auth.profile
-    ? { id: auth.profile.id, name: auth.profile.displayName || auth.profile.username }
-    : { id: auth.session.user.id, name: 'Du' }
-  const entries = [self, ...friends.value.map((friend) => ({ id: friend.id, name: friend.displayName }))].map(
-    (player) => {
-      const stat = map.get(player.id) ?? {
-        playerId: player.id,
-        name: player.name,
-        isWinner: false,
-        legsWon: 0,
-        legsLost: 0,
-        average: 0,
-        checkoutRate: 0,
-        checkoutAttempts: 0,
-        checkoutHits: 0,
-        doubleDarts: 0,
-        count100Plus: 0,
-        count140Plus: 0,
-        count180: 0,
-        totalDarts: 0,
-        totalPoints: 0,
-        highestCheckout: 0
-      }
-      return { stat: { ...stat, name: player.name }, isSelf: player.id === self.id }
-    }
-  )
+  const selfOnline = buildSelfOnlineStats()
+  const selfLocal = buildSelfLocalStats()
+  const selfStats = emptyStats(selfOnline.playerId, selfOnline.name)
+  mergeStats(selfStats, selfOnline)
+  if (selfLocal) mergeStats(selfStats, selfLocal)
+  finalizeStats(selfStats)
+
+  const friendMap = buildFriendStatsMap()
+  const entries = [
+    { stat: selfStats, isSelf: true },
+    ...friends.value.map((friend) => ({
+      stat: friendMap.get(friend.id) ?? emptyStats(friend.id, friend.displayName),
+      isSelf: false
+    }))
+  ]
   return entries
+})
+
+const localCards = computed(() => {
+  const excludeNames = new Set(selfNames.value)
+  return Array.from(localStatsMap.value.entries())
+    .filter(([name]) => !excludeNames.has(name.toLowerCase()))
+    .map(([, stat]) => stat)
 })
 
 onMounted(async () => {

@@ -344,3 +344,60 @@ to authenticated with check (
 
 create policy "friends_delete" on friendships for delete
 to authenticated using (user_id = auth.uid());
+
+create or replace function public.get_friend_stats()
+returns table(
+  player_id uuid,
+  username text,
+  display_name text,
+  total_points numeric,
+  total_darts numeric,
+  checkout_attempts numeric,
+  checkout_hits numeric,
+  double_darts numeric,
+  count_100_plus numeric,
+  count_140_plus numeric,
+  count_180 numeric,
+  highest_checkout numeric
+)
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select
+    stats.player_id,
+    p.username,
+    p.display_name,
+    sum(stats.total_points)::numeric as total_points,
+    sum(stats.total_darts)::numeric as total_darts,
+    sum(stats.checkout_attempts)::numeric as checkout_attempts,
+    sum(stats.checkout_hits)::numeric as checkout_hits,
+    sum(stats.double_darts)::numeric as double_darts,
+    sum(stats.count_100_plus)::numeric as count_100_plus,
+    sum(stats.count_140_plus)::numeric as count_140_plus,
+    sum(stats.count_180)::numeric as count_180,
+    max(stats.highest_checkout)::numeric as highest_checkout
+  from friendships f
+  join lateral (
+    select
+      (stat->>'playerId')::uuid as player_id,
+      coalesce((stat->>'totalPoints')::numeric, 0) as total_points,
+      coalesce((stat->>'totalDarts')::numeric, 0) as total_darts,
+      coalesce((stat->>'checkoutAttempts')::numeric, 0) as checkout_attempts,
+      coalesce((stat->>'checkoutHits')::numeric, 0) as checkout_hits,
+      coalesce((stat->>'doubleDarts')::numeric, 0) as double_darts,
+      coalesce((stat->>'count100Plus')::numeric, 0) as count_100_plus,
+      coalesce((stat->>'count140Plus')::numeric, 0) as count_140_plus,
+      coalesce((stat->>'count180')::numeric, 0) as count_180,
+      coalesce((stat->>'highestCheckout')::numeric, 0) as highest_checkout
+    from tournament_match_results tmr,
+      jsonb_array_elements(tmr.stats) stat
+    where (stat->>'playerId')::uuid = f.friend_id
+  ) stats on true
+  join profiles p on p.id = stats.player_id
+  where f.user_id = auth.uid()
+  group by stats.player_id, p.username, p.display_name;
+$$;
+
+grant execute on function public.get_friend_stats() to authenticated;
