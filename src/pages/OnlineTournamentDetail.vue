@@ -317,8 +317,8 @@
             </div>
             <div v-if="showKnockoutBracket">
               <TournamentBracket
-                :matches="knockoutMatches"
-                :player-name="playerName"
+                :matches="knockoutMatchesForView"
+                :player-name="bracketPlayerName"
                 :results="results"
                 :show-details="true"
                 @details="openMatchDetails"
@@ -332,8 +332,8 @@
         <template v-else>
           <div v-if="showKnockoutBracket">
             <TournamentBracket
-              :matches="knockoutMatches"
-              :player-name="playerName"
+              :matches="knockoutMatchesForView"
+              :player-name="bracketPlayerName"
               :results="results"
               :show-details="true"
               @details="openMatchDetails"
@@ -556,6 +556,66 @@ const showKnockoutBracket = computed(() => {
 })
 
 const isCombined = computed(() => tournament.value?.mode === 'combined')
+
+const seedLabels = computed(() => {
+  if (!tournament.value || tournament.value.mode !== 'combined') return []
+  const labels: string[] = []
+  for (let index = 0; index < groupCount.value; index += 1) {
+    const label = groupLabel(index)
+    labels.push(`1. Gruppe ${label}`)
+    labels.push(`2. Gruppe ${label}`)
+  }
+  return labels
+})
+
+const placeholderNameMap = computed(() => {
+  const map = new Map<string, string>()
+  seedLabels.value.forEach((label, index) => {
+    map.set(`seed-${index}`, label)
+  })
+  return map
+})
+
+const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) => {
+  const size = Math.pow(2, Math.ceil(Math.log2(Math.max(seedIds.length, 2))))
+  const seeds = [...seedIds]
+  while (seeds.length < size) seeds.push('TBD')
+  const rounds = Math.max(1, Math.log2(size))
+  const matches: TournamentMatch[] = []
+  let order = 1
+  for (let round = 1; round <= rounds; round += 1) {
+    const matchCount = size / Math.pow(2, round)
+    for (let index = 0; index < matchCount; index += 1) {
+      let playerAId = 'TBD'
+      let playerBId = 'TBD'
+      if (round === 1) {
+        playerAId = seeds[index] ?? 'TBD'
+        playerBId = seeds[size - 1 - index] ?? 'TBD'
+      }
+      matches.push({
+        id: `placeholder-${tournamentIdValue}-${round}-${index}`,
+        tournamentId: tournamentIdValue,
+        phase: 'knockout',
+        round,
+        order: order++,
+        playerAId,
+        playerBId,
+        status: 'pending'
+      })
+    }
+  }
+  return matches
+}
+
+const knockoutMatchesForView = computed(() => {
+  if (knockoutMatches.value.length > 0) return knockoutMatches.value
+  if (!tournament.value || tournament.value.mode !== 'combined') return knockoutMatches.value
+  const seedIds = seedLabels.value.map((_, index) => `seed-${index}`)
+  return buildPlaceholderMatches(seedIds, tournamentId.value ?? 'preview')
+})
+
+const bracketPlayerName = (playerId: string) =>
+  placeholderNameMap.value.get(playerId) ?? playerName(playerId)
 
 const inviteCode = ref('')
 const scheduleError = ref('')
