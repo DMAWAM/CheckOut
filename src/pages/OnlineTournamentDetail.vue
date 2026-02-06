@@ -556,9 +556,10 @@ const showKnockoutBracket = computed(() => {
 })
 
 const isCombined = computed(() => tournament.value?.mode === 'combined')
+const isKnockout = computed(() => tournament.value?.mode === 'knockout')
 
-const seedLabels = computed(() => {
-  if (!tournament.value || tournament.value.mode !== 'combined') return []
+const combinedSeedLabels = computed(() => {
+  if (!isCombined.value) return []
   const labels: string[] = []
   for (let index = 0; index < groupCount.value; index += 1) {
     const label = groupLabel(index)
@@ -568,9 +569,11 @@ const seedLabels = computed(() => {
   return labels
 })
 
+const combinedSeedIds = computed(() => combinedSeedLabels.value.map((_, index) => `seed-${index}`))
+
 const placeholderNameMap = computed(() => {
   const map = new Map<string, string>()
-  seedLabels.value.forEach((label, index) => {
+  combinedSeedLabels.value.forEach((label, index) => {
     map.set(`seed-${index}`, label)
   })
   return map
@@ -607,15 +610,24 @@ const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) =
   return matches
 }
 
+const knockoutSeedIds = computed(() => {
+  if (isCombined.value) return combinedSeedIds.value
+  if (!isKnockout.value) return []
+  return players.value.map((player) => player.id)
+})
+
 const knockoutMatchesForView = computed(() => {
   if (knockoutMatches.value.length > 0) return knockoutMatches.value
-  if (!tournament.value || tournament.value.mode !== 'combined') return knockoutMatches.value
-  const seedIds = seedLabels.value.map((_, index) => `seed-${index}`)
+  if (!tournament.value) return knockoutMatches.value
+  const seedIds = knockoutSeedIds.value
+  if (seedIds.length === 0) return knockoutMatches.value
   return buildPlaceholderMatches(seedIds, tournamentId.value ?? 'preview')
 })
 
-const bracketPlayerName = (playerId: string) =>
-  placeholderNameMap.value.get(playerId) ?? playerName(playerId)
+const bracketPlayerName = (playerId: string) => {
+  if (playerId === 'TBD') return 'TBD'
+  return placeholderNameMap.value.get(playerId) ?? playerName(playerId)
+}
 
 const inviteCode = ref('')
 const scheduleError = ref('')
