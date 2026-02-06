@@ -214,6 +214,7 @@
                 :player-name="bracketPlayerName"
                 :results="tournamentResults"
                 :show-details="true"
+                :subtitle="bracketSubtitle"
                 @details="openMatchDetails"
                 title="K.O.-Baum"
               />
@@ -229,6 +230,7 @@
               :player-name="bracketPlayerName"
               :results="tournamentResults"
               :show-details="true"
+              :subtitle="bracketSubtitle"
               @details="openMatchDetails"
               title="K.O.-Baum"
             />
@@ -601,6 +603,16 @@ const modeLabel = computed(() => {
   return 'Kombi'
 })
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
+const bracketSubtitle = computed(() => {
+  const format = tournament.value?.settings.format
+  if (!format) return ''
+  if (format.type === 'best_of') {
+    const bestOf = format.bestOf ?? (format.legsToWin ? format.legsToWin * 2 - 1 : undefined)
+    return bestOf ? `Best of ${bestOf}` : ''
+  }
+  const legs = format.legsToWin ?? format.bestOf
+  return legs ? `Race to ${legs} legs` : ''
+})
 
 const formatDate = (value?: string) => {
   if (!value) return ''

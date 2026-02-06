@@ -321,6 +321,7 @@
                 :player-name="bracketPlayerName"
                 :results="results"
                 :show-details="true"
+                :subtitle="bracketSubtitle"
                 @details="openMatchDetails"
                 title="K.O.-Baum"
               />
@@ -336,6 +337,7 @@
               :player-name="bracketPlayerName"
               :results="results"
               :show-details="true"
+              :subtitle="bracketSubtitle"
               @details="openMatchDetails"
               title="K.O.-Baum"
             />
@@ -439,6 +441,16 @@ const isAdmin = computed(() => auth.session?.user?.id === tournament.value?.crea
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
 const qualifierCount = computed(() => (tournament.value?.mode === 'combined' ? 2 : 0))
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
+const bracketSubtitle = computed(() => {
+  const format = tournament.value?.settings.format
+  if (!format) return ''
+  if (format.type === 'best_of') {
+    const bestOf = format.bestOf ?? (format.legsToWin ? format.legsToWin * 2 - 1 : undefined)
+    return bestOf ? `Best of ${bestOf}` : ''
+  }
+  const legs = format.legsToWin ?? format.bestOf
+  return legs ? `Race to ${legs} legs` : ''
+})
 
 const openMatches = computed(() => matches.value.filter((match) => match.status !== 'finished'))
 const finishedMatches = computed(() => matches.value.filter((match) => match.status === 'finished'))

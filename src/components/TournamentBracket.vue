@@ -3,61 +3,98 @@
     <div class="bracket-card">
       <h2 v-if="title" class="bracket-title">{{ title }}</h2>
       <div v-if="rounds.length === 0" class="text-sm text-muted-foreground">
-      Noch keine K.O.-Spiele vorhanden.
+        Noch keine K.O.-Spiele vorhanden.
       </div>
-      <div v-else class="bracket-grid">
-        <div
-          v-for="(round, index) in rounds"
-          :key="`round-${round.round}`"
-          class="bracket-round"
-        >
-          <div class="bracket-round-title">
-            {{ roundLabel(index, rounds.length) }}
-          </div>
-          <div class="bracket-matches" :style="roundContainerStyle(index)">
-            <div
-              v-for="(pair, pairIndex) in roundPairs(round.matches)"
-              :key="`pair-${round.round}-${pairIndex}`"
-              class="bracket-pair"
-              :class="pair.length === 1 ? 'bracket-pair--single' : ''"
-              :style="pairStyle(index, pairIndex)"
-            >
+      <div v-else>
+        <div class="bracket-grid">
+          <div
+            v-for="(round, index) in rounds"
+            :key="`round-${round.round}`"
+            class="bracket-round"
+          >
+            <div class="bracket-round-title">
+              {{ roundLabel(index, rounds.length) }}
+            </div>
+            <div class="bracket-matches" :style="roundContainerStyle(index)">
               <div
-                v-for="match in pair"
-                :key="match.id"
-                class="bracket-match"
+                v-for="(pair, pairIndex) in roundPairs(round.matches)"
+                :key="`pair-${round.round}-${pairIndex}`"
+                class="bracket-pair"
+                :class="pair.length === 1 ? 'bracket-pair--single' : ''"
+                :style="pairStyle(index, pairIndex)"
               >
-                <div class="bracket-game-number">Spiel {{ matchNumber(match) }}</div>
-                <div class="bracket-row" :class="winnerClass(match, match.playerAId)">
-                  <span class="bracket-player">{{ playerLabel(match.playerAId) }}</span>
-                  <span v-if="match.winnerId === match.playerAId" class="bracket-win">W</span>
-                </div>
-                <div class="bracket-row" :class="winnerClass(match, match.playerBId)">
-                  <span class="bracket-player">{{ playerLabel(match.playerBId, match.playerAId) }}</span>
-                  <span v-if="match.winnerId === match.playerBId" class="bracket-win">W</span>
-                </div>
-                <div class="bracket-meta">
-                  <span v-if="matchScore(match)" class="bracket-score">
-                    {{ matchScore(match) }}
-                  </span>
-                  <span class="bracket-status">{{ statusLabel(match.status) }}</span>
-                  <button
-                    v-if="showDetails && hasDetails(match)"
-                    type="button"
-                    class="bracket-details"
-                    @click="emit('details', match.id)"
-                  >
-                    Details
-                  </button>
+                <div
+                  v-for="match in pair"
+                  :key="match.id"
+                  class="bracket-match"
+                >
+                  <div class="bracket-game-number">Spiel {{ matchNumber(match) }}</div>
+                  <div class="bracket-row" :class="winnerClass(match, match.playerAId)">
+                    <span class="bracket-player">{{ playerLabel(match.playerAId) }}</span>
+                    <span v-if="match.winnerId === match.playerAId" class="bracket-win">W</span>
+                  </div>
+                  <div class="bracket-row" :class="winnerClass(match, match.playerBId)">
+                    <span class="bracket-player">{{ playerLabel(match.playerBId, match.playerAId) }}</span>
+                    <span v-if="match.winnerId === match.playerBId" class="bracket-win">W</span>
+                  </div>
+                  <div class="bracket-meta">
+                    <span v-if="matchScore(match)" class="bracket-score">
+                      {{ matchScore(match) }}
+                    </span>
+                    <span class="bracket-status">{{ statusLabel(match.status) }}</span>
+                    <button
+                      v-if="showDetails && hasDetails(match)"
+                      type="button"
+                      class="bracket-details"
+                      @click="emit('details', match.id)"
+                    >
+                      Details
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          <div v-if="championName" class="bracket-champion">
+            <div class="bracket-round-title">Champion</div>
+            <div class="bracket-champion-card">
+              {{ championName }}
+            </div>
+          </div>
         </div>
-        <div v-if="championName" class="bracket-champion">
-          <div class="bracket-round-title">Champion</div>
-          <div class="bracket-champion-card">
-            {{ championName }}
+
+        <div class="bracket-compact">
+          <div v-for="(round, index) in rounds" :key="`compact-${round.round}`" class="compact-round">
+            <div class="compact-round-header">
+              <div>
+                <div class="compact-round-title">{{ roundLabel(index, rounds.length) }}</div>
+                <div v-if="subtitle" class="compact-round-subtitle">{{ subtitle }}</div>
+              </div>
+              <span class="compact-round-status">{{ roundStatus(round.matches) }}</span>
+            </div>
+            <div class="compact-matches">
+              <div v-for="match in round.matches" :key="match.id" class="compact-match">
+                <div class="compact-match-number">{{ matchNumber(match) }}</div>
+                <div class="compact-players">
+                  <div class="compact-player" :class="winnerClass(match, match.playerAId)">
+                    <span class="compact-name">{{ playerLabel(match.playerAId) }}</span>
+                    <span class="compact-score">{{ matchScoreParts(match).a }}</span>
+                  </div>
+                  <div class="compact-player" :class="winnerClass(match, match.playerBId)">
+                    <span class="compact-name">{{ playerLabel(match.playerBId, match.playerAId) }}</span>
+                    <span class="compact-score">{{ matchScoreParts(match).b }}</span>
+                  </div>
+                </div>
+                <button
+                  v-if="showDetails && hasDetails(match)"
+                  type="button"
+                  class="compact-details"
+                  @click="emit('details', match.id)"
+                >
+                  Details
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -75,6 +112,7 @@ const props = defineProps<{
   title?: string
   results?: TournamentMatchResult[]
   showDetails?: boolean
+  subtitle?: string
 }>()
 
 const emit = defineEmits<{ (event: 'details', matchId: string): void }>()
@@ -176,6 +214,13 @@ const matchScore = (match: TournamentMatch) => {
   return `${statA.legsWon}:${statB.legsWon}`
 }
 
+const matchScoreParts = (match: TournamentMatch) => {
+  const score = matchScore(match)
+  if (!score) return { a: '-', b: '-' }
+  const [a, b] = score.split(':')
+  return { a: a ?? '-', b: b ?? '-' }
+}
+
 const hasDetails = (match: TournamentMatch) => Boolean(resultsByMatch.value.get(match.id))
 
 const roundPairs = (matches: TournamentMatch[]) => {
@@ -202,6 +247,12 @@ const statusLabel = (status: string) => {
   if (status === 'finished') return 'beendet'
   if (status === 'in_progress') return 'läuft'
   return 'bereit'
+}
+
+const roundStatus = (matches: TournamentMatch[]) => {
+  if (matches.some((match) => match.status === 'in_progress')) return 'Ongoing'
+  if (matches.length > 0 && matches.every((match) => match.status === 'finished')) return 'Finished'
+  return 'Upcoming'
 }
 
 const winnerClass = (match: TournamentMatch, playerId: string) => {
@@ -337,6 +388,115 @@ const championName = computed(() => {
   padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.bracket-compact {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compact-round {
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.4);
+  overflow: hidden;
+}
+
+.compact-round-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(34, 197, 94, 0.12);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.compact-round-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.compact-round-subtitle {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.7);
+  margin-top: 2px;
+}
+
+.compact-round-status {
+  font-size: 11px;
+  font-weight: 700;
+  color: #22c55e;
+  text-transform: uppercase;
+}
+
+.compact-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.compact-match {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.compact-match-number {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.compact-players {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compact-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.compact-name {
+  font-weight: 600;
+}
+
+.compact-score {
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.8);
+}
+
+.compact-details {
+  font-size: 11px;
+  font-weight: 700;
+  color: #22c55e;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .bracket-grid {
+    display: none;
+  }
+
+  .bracket-compact {
+    display: flex;
+  }
 }
 
 .bracket-row {
