@@ -345,6 +345,7 @@ import LiveMatchModal from '@/components/LiveMatchModal.vue'
 import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
+import { resolveMatchFormat } from '@/domain/tournamentFormat'
 
 const router = useRouter()
 const route = useRoute()
@@ -682,8 +683,18 @@ const modeLabel = computed(() => {
   return 'Kombi'
 })
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
+const hasKnockoutRoundOverrides = computed(() => {
+  const overrides = tournament.value?.settings.formatByPhase?.knockoutRounds
+  return overrides ? Object.keys(overrides).length > 0 : false
+})
+
 const bracketSubtitle = computed(() => {
-  const format = tournament.value?.settings.format
+  if (hasKnockoutRoundOverrides.value) {
+    return 'Format je Runde'
+  }
+  const format =
+    tournament.value?.settings.formatByPhase?.knockout ??
+    tournament.value?.settings.format
   if (!format) return ''
   if (format.type === 'best_of') {
     const bestOf = format.bestOf ?? (format.legsToWin ? format.legsToWin * 2 - 1 : undefined)
@@ -749,9 +760,10 @@ const startMatch = (matchId: string) => {
   if (!playerA || !playerB) return
 
   tournamentsStore.markMatchInProgress(match.id)
+  const matchFormat = resolveMatchFormat(tournament.value, match)
   gameStore.startNewMatch(playerA.name, playerB.name, {
     doubleOut: tournament.value.settings.doubleOut,
-    format: tournament.value.settings.format,
+    format: matchFormat,
     tournamentId: tournament.value.id,
     matchId: match.id,
     playerA,

@@ -440,6 +440,7 @@ import QRCode from 'qrcode'
 import type { TournamentMatch } from '@/domain/models'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
+import { resolveMatchFormat } from '@/domain/tournamentFormat'
 
 const router = useRouter()
 const route = useRoute()
@@ -468,8 +469,18 @@ const isAdmin = computed(() => auth.session?.user?.id === tournament.value?.crea
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
 const qualifierCount = computed(() => (tournament.value?.mode === 'combined' ? 2 : 0))
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
+const hasKnockoutRoundOverrides = computed(() => {
+  const overrides = tournament.value?.settings.formatByPhase?.knockoutRounds
+  return overrides ? Object.keys(overrides).length > 0 : false
+})
+
 const bracketSubtitle = computed(() => {
-  const format = tournament.value?.settings.format
+  if (hasKnockoutRoundOverrides.value) {
+    return 'Format je Runde'
+  }
+  const format =
+    tournament.value?.settings.formatByPhase?.knockout ??
+    tournament.value?.settings.format
   if (!format) return ''
   if (format.type === 'best_of') {
     const bestOf = format.bestOf ?? (format.legsToWin ? format.legsToWin * 2 - 1 : undefined)
@@ -976,9 +987,10 @@ const startMatch = async (matchId: string) => {
 
   try {
     await onlineStore.markMatchInProgress(match.id)
+    const matchFormat = resolveMatchFormat(tournament.value, match)
     gameStore.startNewMatch(playerA.name, playerB.name, {
       doubleOut: tournament.value.settings.doubleOut,
-      format: tournament.value.settings.format,
+      format: matchFormat,
       tournamentId: tournament.value.id,
       matchId: match.id,
       startingScore: tournament.value.settings.startingScore ?? 501,

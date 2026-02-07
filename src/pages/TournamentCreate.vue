@@ -140,6 +140,348 @@
       </div>
 
       <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-5 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold text-lg text-foreground">Formate pro Phase</div>
+            <div class="text-sm text-muted-foreground font-semibold">
+              Optional: unterschiedliche Legs/Sätze je Turnierphase.
+            </div>
+          </div>
+          <button
+            @click="usePhaseFormats = !usePhaseFormats"
+            class="w-14 h-8 rounded-full transition-colors relative"
+            :class="usePhaseFormats ? 'bg-primary' : 'bg-secondary'"
+          >
+            <div
+              class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+              :class="usePhaseFormats ? 'translate-x-7' : 'translate-x-1'"
+            />
+          </button>
+        </div>
+
+        <div v-if="usePhaseFormats" class="space-y-6">
+          <div
+            v-if="tournamentType !== 'knockout'"
+            class="bg-muted/30 border-2 border-border rounded-xl p-4 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-foreground">Gruppenphase</div>
+              <span class="text-xs text-muted-foreground">Round Robin</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                @click="setFormatMode(groupFormat, 'first_to')"
+                class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                :class="groupFormat.mode === 'first_to'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-secondary-foreground border-border'"
+              >
+                First-to
+              </button>
+              <button
+                @click="setFormatMode(groupFormat, 'best_of')"
+                class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                :class="groupFormat.mode === 'best_of'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-secondary-foreground border-border'"
+              >
+                Best-of
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-bold text-foreground">
+                  {{ groupFormat.mode === 'first_to' ? 'First-to' : 'Best-of' }} {{ unitLabelFor(groupFormat) }}
+                </div>
+                <div class="text-xs text-muted-foreground font-semibold">
+                  {{ groupFormat.mode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="decrementFormat(groupFormat)"
+                >
+                  -
+                </button>
+                <div class="w-14 text-center text-2xl font-black text-foreground">
+                  {{ groupFormat.mode === 'first_to' ? groupFormat.target : groupFormat.bestOf }}
+                </div>
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="incrementFormat(groupFormat)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <div>
+                <div class="font-bold text-foreground">Sätze spielen</div>
+                <div class="text-xs text-muted-foreground font-semibold">Legs in Sets gruppieren</div>
+              </div>
+              <button
+                @click="groupFormat.useSets = !groupFormat.useSets"
+                class="w-14 h-8 rounded-full transition-colors relative"
+                :class="groupFormat.useSets ? 'bg-primary' : 'bg-secondary'"
+              >
+                <div
+                  class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+                  :class="groupFormat.useSets ? 'translate-x-7' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+
+            <div v-if="groupFormat.useSets" class="flex items-center justify-between">
+              <div>
+                <div class="font-bold text-foreground">Legs pro Satz</div>
+                <div class="text-xs text-muted-foreground font-semibold">Legs pro Set</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="decrementLegsPerSet(groupFormat)"
+                >
+                  -
+                </button>
+                <div class="w-14 text-center text-2xl font-black text-foreground">
+                  {{ groupFormat.legsPerSet }}
+                </div>
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="incrementLegsPerSet(groupFormat)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="tournamentType !== 'round_robin'"
+            class="bg-muted/30 border-2 border-border rounded-xl p-4 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-foreground">K.O.-Phase (Standard)</div>
+              <span class="text-xs text-muted-foreground">Gilt für alle Runden</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                @click="setFormatMode(knockoutFormat, 'first_to')"
+                class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                :class="knockoutFormat.mode === 'first_to'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-secondary-foreground border-border'"
+              >
+                First-to
+              </button>
+              <button
+                @click="setFormatMode(knockoutFormat, 'best_of')"
+                class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                :class="knockoutFormat.mode === 'best_of'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-secondary-foreground border-border'"
+              >
+                Best-of
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-bold text-foreground">
+                  {{ knockoutFormat.mode === 'first_to' ? 'First-to' : 'Best-of' }} {{ unitLabelFor(knockoutFormat) }}
+                </div>
+                <div class="text-xs text-muted-foreground font-semibold">
+                  {{ knockoutFormat.mode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="decrementFormat(knockoutFormat)"
+                >
+                  -
+                </button>
+                <div class="w-14 text-center text-2xl font-black text-foreground">
+                  {{ knockoutFormat.mode === 'first_to' ? knockoutFormat.target : knockoutFormat.bestOf }}
+                </div>
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="incrementFormat(knockoutFormat)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <div>
+                <div class="font-bold text-foreground">Sätze spielen</div>
+                <div class="text-xs text-muted-foreground font-semibold">Legs in Sets gruppieren</div>
+              </div>
+              <button
+                @click="knockoutFormat.useSets = !knockoutFormat.useSets"
+                class="w-14 h-8 rounded-full transition-colors relative"
+                :class="knockoutFormat.useSets ? 'bg-primary' : 'bg-secondary'"
+              >
+                <div
+                  class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+                  :class="knockoutFormat.useSets ? 'translate-x-7' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+
+            <div v-if="knockoutFormat.useSets" class="flex items-center justify-between">
+              <div>
+                <div class="font-bold text-foreground">Legs pro Satz</div>
+                <div class="text-xs text-muted-foreground font-semibold">Legs pro Set</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="decrementLegsPerSet(knockoutFormat)"
+                >
+                  -
+                </button>
+                <div class="w-14 text-center text-2xl font-black text-foreground">
+                  {{ knockoutFormat.legsPerSet }}
+                </div>
+                <button
+                  class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                  @click="incrementLegsPerSet(knockoutFormat)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="tournamentType !== 'round_robin' && koRoundOverrides.length > 0"
+            class="bg-muted/30 border-2 border-border rounded-xl p-4 space-y-4"
+          >
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-foreground">K.O.-Runden</div>
+              <span class="text-xs text-muted-foreground">Optional überschreiben</span>
+            </div>
+
+            <div v-for="round in koRoundOverrides" :key="round.round" class="border-2 border-border rounded-xl p-4 bg-white">
+              <div class="flex items-center justify-between mb-3">
+                <div class="font-semibold text-foreground">{{ round.label }}</div>
+                <button
+                  @click="round.enabled = !round.enabled"
+                  class="w-14 h-8 rounded-full transition-colors relative"
+                  :class="round.enabled ? 'bg-primary' : 'bg-secondary'"
+                >
+                  <div
+                    class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+                    :class="round.enabled ? 'translate-x-7' : 'translate-x-1'"
+                  />
+                </button>
+              </div>
+
+              <div v-if="round.enabled" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    @click="setFormatMode(round.state, 'first_to')"
+                    class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                    :class="round.state.mode === 'first_to'
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary text-secondary-foreground border-border'"
+                  >
+                    First-to
+                  </button>
+                  <button
+                    @click="setFormatMode(round.state, 'best_of')"
+                    class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                    :class="round.state.mode === 'best_of'
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary text-secondary-foreground border-border'"
+                  >
+                    Best-of
+                  </button>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-bold text-foreground">
+                      {{ round.state.mode === 'first_to' ? 'First-to' : 'Best-of' }} {{ unitLabelFor(round.state) }}
+                    </div>
+                    <div class="text-xs text-muted-foreground font-semibold">
+                      {{ round.state.mode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                      @click="decrementFormat(round.state)"
+                    >
+                      -
+                    </button>
+                    <div class="w-14 text-center text-2xl font-black text-foreground">
+                      {{ round.state.mode === 'first_to' ? round.state.target : round.state.bestOf }}
+                    </div>
+                    <button
+                      class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                      @click="incrementFormat(round.state)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <div>
+                    <div class="font-bold text-foreground">Sätze spielen</div>
+                    <div class="text-xs text-muted-foreground font-semibold">Legs in Sets gruppieren</div>
+                  </div>
+                  <button
+                    @click="round.state.useSets = !round.state.useSets"
+                    class="w-14 h-8 rounded-full transition-colors relative"
+                    :class="round.state.useSets ? 'bg-primary' : 'bg-secondary'"
+                  >
+                    <div
+                      class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+                      :class="round.state.useSets ? 'translate-x-7' : 'translate-x-1'"
+                    />
+                  </button>
+                </div>
+
+                <div v-if="round.state.useSets" class="flex items-center justify-between">
+                  <div>
+                    <div class="font-bold text-foreground">Legs pro Satz</div>
+                    <div class="text-xs text-muted-foreground font-semibold">Legs pro Set</div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                      @click="decrementLegsPerSet(round.state)"
+                    >
+                      -
+                    </button>
+                    <div class="w-14 text-center text-2xl font-black text-foreground">
+                      {{ round.state.legsPerSet }}
+                    </div>
+                    <button
+                      class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
+                      @click="incrementLegsPerSet(round.state)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-xs text-muted-foreground">Verwendet Standard-K.O.-Format.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-5 shadow-sm">
         <div class="flex items-center justify-between pb-4 border-b-2 border-border">
           <div>
             <div class="font-bold text-lg text-foreground">Spielmodus</div>
@@ -184,18 +526,18 @@
 
           <div class="grid grid-cols-2 gap-3">
             <button
-              @click="formatMode = 'first_to'"
+              @click="setFormatMode(baseFormat, 'first_to')"
               class="px-4 py-3 rounded-xl font-semibold transition-all border-2"
-              :class="formatMode === 'first_to'
+              :class="baseFormat.mode === 'first_to'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-secondary text-secondary-foreground border-border'"
             >
               First-to
             </button>
             <button
-              @click="formatMode = 'best_of'"
+              @click="setFormatMode(baseFormat, 'best_of')"
               class="px-4 py-3 rounded-xl font-semibold transition-all border-2"
-              :class="formatMode === 'best_of'
+              :class="baseFormat.mode === 'best_of'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-secondary text-secondary-foreground border-border'"
             >
@@ -206,25 +548,25 @@
           <div class="flex items-center justify-between">
             <div>
               <div class="font-bold text-lg text-foreground">
-                {{ formatMode === 'first_to' ? 'First-to' : 'Best-of' }} {{ unitLabel }}
+                {{ baseFormat.mode === 'first_to' ? 'First-to' : 'Best-of' }} {{ unitLabelFor(baseFormat) }}
               </div>
               <div class="text-sm text-muted-foreground font-semibold">
-                {{ formatMode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
+                {{ baseFormat.mode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
               </div>
             </div>
             <div class="flex items-center gap-2">
               <button
                 class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
-                @click="decrementFormat"
+                @click="decrementFormat(baseFormat)"
               >
                 -
               </button>
               <div class="w-14 text-center text-2xl font-black text-foreground">
-                {{ formatMode === 'first_to' ? targetCount : bestOfCount }}
+                {{ baseFormat.mode === 'first_to' ? baseFormat.target : baseFormat.bestOf }}
               </div>
               <button
                 class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
-                @click="incrementFormat"
+                @click="incrementFormat(baseFormat)"
               >
                 +
               </button>
@@ -237,18 +579,18 @@
               <div class="text-sm text-muted-foreground font-semibold">Legs in Sets gruppieren</div>
             </div>
             <button
-              @click="useSets = !useSets"
+              @click="baseFormat.useSets = !baseFormat.useSets"
               class="w-14 h-8 rounded-full transition-colors relative"
-              :class="useSets ? 'bg-primary' : 'bg-secondary'"
+              :class="baseFormat.useSets ? 'bg-primary' : 'bg-secondary'"
             >
               <div
                 class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
-                :class="useSets ? 'translate-x-7' : 'translate-x-1'"
+                :class="baseFormat.useSets ? 'translate-x-7' : 'translate-x-1'"
               />
             </button>
           </div>
 
-          <div v-if="useSets" class="flex items-center justify-between">
+          <div v-if="baseFormat.useSets" class="flex items-center justify-between">
             <div>
               <div class="font-bold text-lg text-foreground">Legs pro Satz</div>
               <div class="text-sm text-muted-foreground font-semibold">Legs pro Set</div>
@@ -256,14 +598,14 @@
             <div class="flex items-center gap-2">
               <button
                 class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
-                @click="decrementLegsPerSet"
+                @click="decrementLegsPerSet(baseFormat)"
               >
                 -
               </button>
-              <div class="w-14 text-center text-2xl font-black text-foreground">{{ legsPerSet }}</div>
+              <div class="w-14 text-center text-2xl font-black text-foreground">{{ baseFormat.legsPerSet }}</div>
               <button
                 class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
-                @click="incrementLegsPerSet"
+                @click="incrementLegsPerSet(baseFormat)"
               >
                 +
               </button>
@@ -358,7 +700,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePlayersStore } from '@/stores/playersStore'
 import { useTournamentsStore } from '@/stores/tournamentsStore'
@@ -382,13 +724,47 @@ const errorMessage = ref('')
 
 const doubleOut = ref(true)
 const startingScore = ref<301 | 501 | 701>(501)
-const formatMode = ref<'first_to' | 'best_of'>('first_to')
-const targetCount = ref(3)
-const bestOfCount = ref(5)
-const useSets = ref(false)
-const legsPerSet = ref(3)
+const usePhaseFormats = ref(false)
 
-const unitLabel = computed(() => (useSets.value ? 'Sätze' : 'Legs'))
+type FormatState = {
+  mode: 'first_to' | 'best_of'
+  target: number
+  bestOf: number
+  useSets: boolean
+  legsPerSet: number
+}
+
+const createFormatState = (): FormatState => ({
+  mode: 'first_to',
+  target: 3,
+  bestOf: 5,
+  useSets: false,
+  legsPerSet: 3
+})
+
+const baseFormat = reactive(createFormatState())
+const groupFormat = reactive(createFormatState())
+const knockoutFormat = reactive(createFormatState())
+
+const unitLabelFor = (state: FormatState) => (state.useSets ? 'Sätze' : 'Legs')
+
+const applyFormatState = (target: FormatState, source: FormatState) => {
+  target.mode = source.mode
+  target.target = source.target
+  target.bestOf = source.bestOf
+  target.useSets = source.useSets
+  target.legsPerSet = source.legsPerSet
+}
+
+type RoundOverride = {
+  round: number
+  label: string
+  enabled: boolean
+  state: FormatState
+}
+
+const koRoundOverrides = ref<RoundOverride[]>([])
+
 
 const maxGroups = computed(() => {
   if (tournamentScope.value === 'online') return 8
@@ -452,48 +828,131 @@ watch(
   }
 )
 
-const decrementFormat = () => {
-  if (formatMode.value === 'first_to') {
-    targetCount.value = Math.max(1, targetCount.value - 1)
+const nextPowerOfTwo = (value: number) => {
+  let result = 1
+  while (result < value) result *= 2
+  return result
+}
+
+const estimatedKnockoutPlayers = computed(() => {
+  if (tournamentType.value === 'round_robin') return 0
+  if (tournamentType.value === 'combined') {
+    return Math.max(2, groupCount.value * 2)
+  }
+  if (tournamentScope.value === 'local') {
+    return Math.max(2, selectedPlayerIds.value.length)
+  }
+  return Math.max(2, groupCount.value * 2)
+})
+
+const knockoutRoundLabels = computed(() => {
+  if (tournamentType.value === 'round_robin') return [] as string[]
+  const players = estimatedKnockoutPlayers.value
+  if (!players) return [] as string[]
+  const size = nextPowerOfTwo(players)
+  const rounds = Math.max(1, Math.log2(size))
+  return Array.from({ length: rounds }, (_, index) => {
+    const stageSize = size / Math.pow(2, index)
+    if (stageSize >= 8) return `Top ${stageSize}`
+    if (stageSize === 4) return 'Halbfinale'
+    if (stageSize === 2) return 'Finale'
+    return `Runde ${index + 1}`
+  })
+})
+
+const syncRoundOverrides = () => {
+  const labels = knockoutRoundLabels.value
+  const existing = new Map<number, RoundOverride>(koRoundOverrides.value.map((entry) => [entry.round, entry]))
+  koRoundOverrides.value = labels.map((label, index) => {
+    const round = index + 1
+    const prev = existing.get(round)
+    if (prev) {
+      return { ...prev, label }
+    }
+    return {
+      round,
+      label,
+      enabled: false,
+      state: { ...createFormatState(), ...knockoutFormat }
+    }
+  })
+}
+
+watch(knockoutRoundLabels, () => syncRoundOverrides(), { immediate: true })
+
+watch(
+  () => usePhaseFormats.value,
+  (enabled) => {
+    if (!enabled) return
+    applyFormatState(groupFormat, baseFormat)
+    applyFormatState(knockoutFormat, baseFormat)
+    syncRoundOverrides()
+  }
+)
+
+const setFormatMode = (state: FormatState, mode: FormatState['mode']) => {
+  state.mode = mode
+}
+
+const decrementFormat = (state: FormatState) => {
+  if (state.mode === 'first_to') {
+    state.target = Math.max(1, state.target - 1)
   } else {
-    bestOfCount.value = Math.max(3, bestOfCount.value - 2)
+    state.bestOf = Math.max(3, state.bestOf - 2)
   }
 }
 
-const incrementFormat = () => {
-  if (formatMode.value === 'first_to') {
-    targetCount.value = Math.min(9, targetCount.value + 1)
+const incrementFormat = (state: FormatState) => {
+  if (state.mode === 'first_to') {
+    state.target = Math.min(9, state.target + 1)
   } else {
-    bestOfCount.value = Math.min(15, bestOfCount.value + 2)
+    state.bestOf = Math.min(15, state.bestOf + 2)
   }
 }
 
-const decrementLegsPerSet = () => {
-  legsPerSet.value = Math.max(1, legsPerSet.value - 1)
+const decrementLegsPerSet = (state: FormatState) => {
+  state.legsPerSet = Math.max(1, state.legsPerSet - 1)
 }
 
-const incrementLegsPerSet = () => {
-  legsPerSet.value = Math.min(9, legsPerSet.value + 1)
+const incrementLegsPerSet = (state: FormatState) => {
+  state.legsPerSet = Math.min(9, state.legsPerSet + 1)
 }
 
-const buildFormat = (): MatchFormat => {
-  const target = formatMode.value === 'first_to'
-    ? targetCount.value
-    : Math.ceil(bestOfCount.value / 2)
+const buildFormat = (state: FormatState): MatchFormat => {
+  const target = state.mode === 'first_to'
+    ? state.target
+    : Math.ceil(state.bestOf / 2)
 
   return {
-    type: formatMode.value,
-    legsToWin: useSets.value ? legsPerSet.value : target,
-    bestOf: formatMode.value === 'best_of' ? bestOfCount.value : undefined,
-    useSets: useSets.value,
-    setsToWin: useSets.value ? target : undefined,
-    legsPerSet: useSets.value ? legsPerSet.value : undefined
+    type: state.mode,
+    legsToWin: state.useSets ? state.legsPerSet : target,
+    bestOf: state.mode === 'best_of' ? state.bestOf : undefined,
+    useSets: state.useSets,
+    setsToWin: state.useSets ? target : undefined,
+    legsPerSet: state.useSets ? state.legsPerSet : undefined
   }
 }
 
 const createTournament = async () => {
   if (!canCreate.value) return
   errorMessage.value = ''
+  const baseFormatValue = buildFormat(baseFormat)
+  const formatByPhase = usePhaseFormats.value
+    ? {
+      roundRobin: tournamentType.value !== 'knockout' ? buildFormat(groupFormat) : undefined,
+      knockout: tournamentType.value !== 'round_robin' ? buildFormat(knockoutFormat) : undefined,
+      knockoutRounds: koRoundOverrides.value.reduce<Record<string, MatchFormat>>((acc, entry) => {
+        if (entry.enabled) {
+          acc[String(entry.round)] = buildFormat(entry.state)
+        }
+        return acc
+      }, {})
+    }
+    : undefined
+  const normalizedFormatByPhase =
+    formatByPhase && Object.keys(formatByPhase.knockoutRounds ?? {}).length === 0
+      ? { ...formatByPhase, knockoutRounds: undefined }
+      : formatByPhase
   if (tournamentScope.value === 'online') {
     try {
       const id = await onlineTournamentsStore.createTournament({
@@ -503,7 +962,8 @@ const createTournament = async () => {
         settings: {
           mode501: startingScore.value === 501,
           doubleOut: doubleOut.value,
-          format: buildFormat(),
+          format: baseFormatValue,
+          formatByPhase: normalizedFormatByPhase,
           groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
           startingScore: startingScore.value
         }
@@ -522,7 +982,8 @@ const createTournament = async () => {
     settings: {
       mode501: startingScore.value === 501,
       doubleOut: doubleOut.value,
-      format: buildFormat(),
+      format: baseFormatValue,
+      formatByPhase: normalizedFormatByPhase,
       groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
       startingScore: startingScore.value
     },

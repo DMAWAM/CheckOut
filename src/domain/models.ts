@@ -69,6 +69,11 @@ export interface Tournament {
     mode501: boolean
     doubleOut: boolean
     format?: MatchFormat
+    formatByPhase?: {
+      roundRobin?: MatchFormat
+      knockout?: MatchFormat
+      knockoutRounds?: Record<string, MatchFormat>
+    }
     groupCount?: number
     startingScore?: number
   }
