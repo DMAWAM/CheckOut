@@ -8,6 +8,7 @@ import type {
   TournamentMode,
   TournamentPhase
 } from '@/domain/models'
+import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { calculateLeaderboardsFromData, calculateStandingsFromData } from '@/domain/tournamentStats'
 import { buildKnockoutSeedPairs, distributePlayersToGroups, generateRoundRobinRounds } from '@/domain/tournamentScheduler'
 import { useAuthStore } from '@/stores/authStore'
@@ -513,6 +514,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         },
         { onConflict: 'match_id' }
       )
+      await this.clearLiveState(matchId)
       await this.fetchTournamentDetail(tournamentId)
       await this.ensureKnockoutPhase()
       await this.advanceKnockoutIfReady()
@@ -674,6 +676,40 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         if (index >= 0) {
           this.tournaments[index] = { ...this.tournaments[index], status: data }
         }
+      }
+    },
+    async saveLiveState(matchId: string, snapshot: LiveMatchSnapshot) {
+      const tournamentId = snapshot.match.tournamentId ?? this.currentTournament?.id
+      if (!tournamentId) return
+      const { error } = await supabase.from('tournament_match_live').upsert(
+        {
+          match_id: matchId,
+          tournament_id: tournamentId,
+          snapshot,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'match_id' }
+      )
+      if (error) {
+        console.warn(error)
+      }
+    },
+    async fetchLiveState(matchId: string) {
+      const { data, error } = await supabase
+        .from('tournament_match_live')
+        .select('snapshot')
+        .eq('match_id', matchId)
+        .maybeSingle()
+      if (error) {
+        console.warn(error)
+        return null
+      }
+      return (data?.snapshot as LiveMatchSnapshot) ?? null
+    },
+    async clearLiveState(matchId: string) {
+      const { error } = await supabase.from('tournament_match_live').delete().eq('match_id', matchId)
+      if (error) {
+        console.warn(error)
       }
     },
     async deleteTournament(tournamentId: string) {

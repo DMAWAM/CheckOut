@@ -180,7 +180,9 @@
             <div
               v-for="match in openMatches"
               :key="match.id"
-              class="w-full flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-4 text-left"
+              class="w-full flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-4 text-left transition-all"
+              :class="match.status === 'in_progress' ? 'cursor-pointer hover:shadow-md' : ''"
+              @click="handleMatchClick(match)"
             >
               <div>
                 <div class="font-bold text-foreground">
@@ -194,26 +196,40 @@
                   · Runde {{ match.round }}
                 </div>
               </div>
-              <div>
+              <div class="flex items-center gap-2">
                 <button
                   v-if="canStartMatch(match)"
-                  @click="startMatch(match.id)"
+                  @click.stop="startMatch(match.id)"
                   class="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold"
                 >
                   Starten
                 </button>
+                <button
+                  v-else-if="canResumeMatch(match)"
+                  @click.stop="resumeMatch(match.id)"
+                  class="px-3 py-1 rounded-full bg-dart-gold text-white text-xs font-bold"
+                >
+                  Fortsetzen
+                </button>
+                <button
+                  v-else-if="match.status === 'in_progress'"
+                  @click.stop="openLiveMatch(match.id)"
+                  class="px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs font-bold"
+                >
+                  Live ansehen
+                </button>
                 <span
                   v-else
-                  class="px-3 py-1 rounded-full text-xs font-bold"
-                  :class="match.status === 'in_progress'
-                    ? 'bg-dart-gold/20 text-dart-gold'
-                    : 'bg-muted text-muted-foreground'"
+                  class="px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground"
                 >
-                  {{ match.status === 'in_progress' ? 'läuft' : 'bereit' }}
+                  bereit
                 </span>
               </div>
             </div>
           </div>
+          <p v-if="matchActionError" class="text-xs text-destructive mt-3">
+            {{ matchActionError }}
+          </p>
         </div>
 
         <div class="bg-white border-2 border-border rounded-2xl p-6">
@@ -378,6 +394,15 @@
         </div>
       </div>
     </div>
+    <LiveMatchModal
+      :open="Boolean(liveMatchId)"
+      :match="liveMatch"
+      :snapshot="liveSnapshot"
+      :player-name="playerName"
+      :loading="liveLoading"
+      :error="liveError"
+      @close="closeLiveMatch"
+    />
     <MatchDetailsModal
       :open="Boolean(selectedMatchId)"
       :match="selectedMatch"
@@ -399,7 +424,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -409,10 +434,12 @@ import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
 import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.vue'
 import TournamentBracket from '@/components/TournamentBracket.vue'
 import MatchDetailsModal from '@/components/MatchDetailsModal.vue'
+import LiveMatchModal from '@/components/LiveMatchModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import QRCode from 'qrcode'
 import type { TournamentMatch } from '@/domain/models'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
+import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 
 const router = useRouter()
 const route = useRoute()
@@ -452,7 +479,15 @@ const bracketSubtitle = computed(() => {
   return legs ? `Race to ${legs} legs` : ''
 })
 
-const openMatches = computed(() => matches.value.filter((match) => match.status !== 'finished'))
+const openMatches = computed(() =>
+  matches.value
+    .filter((match) => match.status !== 'finished')
+    .slice()
+    .sort((a, b) => {
+      const rank = (status: string) => (status === 'in_progress' ? 0 : 1)
+      return rank(a.status) - rank(b.status) || a.order - b.order
+    })
+)
 const finishedMatches = computed(() => matches.value.filter((match) => match.status === 'finished'))
 
 interface FinishedMatchEntry {
@@ -499,8 +534,68 @@ const selectedMatchStats = computed(() => {
   }))
 })
 
+const liveMatchId = ref<string | null>(null)
+const liveSnapshot = ref<LiveMatchSnapshot | null>(null)
+const liveLoading = ref(false)
+const liveError = ref('')
+let livePollTimer: number | null = null
+
+const liveMatch = computed(() => matches.value.find((match) => match.id === liveMatchId.value) ?? null)
+
+const fetchLiveSnapshot = async () => {
+  if (!liveMatchId.value) return
+  liveLoading.value = true
+  liveError.value = ''
+  try {
+    liveSnapshot.value = await onlineStore.fetchLiveState(liveMatchId.value)
+  } catch (err) {
+    console.warn(err)
+    liveError.value = 'Live-Daten konnten nicht geladen werden.'
+  } finally {
+    liveLoading.value = false
+  }
+}
+
+const startLivePolling = () => {
+  if (livePollTimer) window.clearInterval(livePollTimer)
+  livePollTimer = window.setInterval(() => {
+    void fetchLiveSnapshot()
+  }, 4000)
+}
+
+const stopLivePolling = () => {
+  if (livePollTimer) {
+    window.clearInterval(livePollTimer)
+    livePollTimer = null
+  }
+}
+
+const openLiveMatch = async (matchId: string) => {
+  selectedMatchId.value = null
+  liveMatchId.value = matchId
+  liveError.value = ''
+  await fetchLiveSnapshot()
+  startLivePolling()
+}
+
+const closeLiveMatch = () => {
+  liveMatchId.value = null
+  liveSnapshot.value = null
+  liveError.value = ''
+  liveLoading.value = false
+  stopLivePolling()
+}
+
 const openMatchDetails = (matchId: string) => {
-  selectedMatchId.value = matchId
+  const match = matches.value.find((entry) => entry.id === matchId)
+  if (!match) return
+  if (match.status === 'in_progress') {
+    void openLiveMatch(matchId)
+    return
+  }
+  if (match.status === 'finished') {
+    selectedMatchId.value = matchId
+  }
 }
 
 const closeMatchDetails = () => {
@@ -685,6 +780,7 @@ const bracketPlayerName = (playerId: string) =>
 
 const inviteCode = ref('')
 const scheduleError = ref('')
+const matchActionError = ref('')
 const newPlayersInput = ref('')
 const generateError = ref('')
 const generateInfo = ref('')
@@ -698,6 +794,10 @@ onMounted(async () => {
     inviteCode.value = code ?? ''
     await onlineStore.fetchLoginCodes(tournamentId.value)
   }
+})
+
+onUnmounted(() => {
+  stopLivePolling()
 })
 
 const copyInvite = async () => {
@@ -837,24 +937,55 @@ const canStartMatch = (match: TournamentMatch) => {
   return isParticipant && match.status === 'pending'
 }
 
+const canResumeMatch = (match: TournamentMatch) => {
+  const userId = auth.session?.user?.id
+  if (!userId) return false
+  const isParticipant = match.playerAId === userId || match.playerBId === userId
+  return isParticipant && match.status === 'in_progress'
+}
+
+const handleMatchClick = (match: TournamentMatch) => {
+  if (match.status !== 'in_progress') return
+  if (canResumeMatch(match)) {
+    void resumeMatch(match.id)
+  } else {
+    void openLiveMatch(match.id)
+  }
+}
+
+const resumeMatch = async (matchId: string) => {
+  matchActionError.value = ''
+  try {
+    await gameStore.resumeMatch({ matchId, tournamentScope: 'online' })
+    router.push('/game')
+  } catch (err) {
+    matchActionError.value = (err as Error).message ?? 'Match konnte nicht fortgesetzt werden.'
+  }
+}
+
 const startMatch = async (matchId: string) => {
+  matchActionError.value = ''
   const match = matches.value.find((entry) => entry.id === matchId)
   if (!match || !tournament.value) return
   const playerA = players.value.find((player) => player.id === match.playerAId)
   const playerB = players.value.find((player) => player.id === match.playerBId)
   if (!playerA || !playerB) return
 
-  await onlineStore.markMatchInProgress(match.id)
-  gameStore.startNewMatch(playerA.name, playerB.name, {
-    doubleOut: tournament.value.settings.doubleOut,
-    format: tournament.value.settings.format,
-    tournamentId: tournament.value.id,
-    matchId: match.id,
-    startingScore: tournament.value.settings.startingScore ?? 501,
-    tournamentScope: 'online',
-    playerA: { id: playerA.id, name: playerA.name, createdAt: new Date().toISOString() },
-    playerB: { id: playerB.id, name: playerB.name, createdAt: new Date().toISOString() }
-  })
-  router.push('/game')
+  try {
+    await onlineStore.markMatchInProgress(match.id)
+    gameStore.startNewMatch(playerA.name, playerB.name, {
+      doubleOut: tournament.value.settings.doubleOut,
+      format: tournament.value.settings.format,
+      tournamentId: tournament.value.id,
+      matchId: match.id,
+      startingScore: tournament.value.settings.startingScore ?? 501,
+      tournamentScope: 'online',
+      playerA: { id: playerA.id, name: playerA.name, createdAt: new Date().toISOString() },
+      playerB: { id: playerB.id, name: playerB.name, createdAt: new Date().toISOString() }
+    })
+    router.push('/game')
+  } catch (err) {
+    matchActionError.value = (err as Error).message ?? 'Match konnte nicht gestartet werden.'
+  }
 }
 </script>

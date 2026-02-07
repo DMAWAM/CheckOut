@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { GameMode, Leg, Match, MatchFormat, Player, Turn } from '@/domain/models'
+import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import type { MatchSummary } from '@/domain/matchSummary'
 import { createId } from '@/domain/id'
 import { createTurn } from '@/domain/gameRules'
@@ -11,6 +12,7 @@ import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 interface PendingCheckout {
   points: number
 }
+
 
 interface GameState {
   players: Player[]
@@ -25,6 +27,29 @@ interface GameState {
   legWins: Record<string, number>
   setWins: Record<string, number>
   setLegWins: Record<string, number>
+}
+
+const localKey = (matchId: string) => `checkout_live_match_${matchId}`
+
+const loadLocalSnapshot = (matchId: string): LiveMatchSnapshot | null => {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(localKey(matchId))
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as LiveMatchSnapshot
+  } catch {
+    return null
+  }
+}
+
+const saveLocalSnapshot = (matchId: string, snapshot: LiveMatchSnapshot) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(localKey(matchId), JSON.stringify(snapshot))
+}
+
+const clearLocalSnapshot = (matchId: string) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(localKey(matchId))
 }
 
 export const useGameStore = defineStore('game', {
@@ -110,6 +135,9 @@ export const useGameStore = defineStore('game', {
       this.legWins = { [playerA.id]: 0, [playerB.id]: 0 }
       this.setWins = { [playerA.id]: 0, [playerB.id]: 0 }
       this.setLegWins = { [playerA.id]: 0, [playerB.id]: 0 }
+      if (this.match?.status !== 'finished') {
+        this.persistLiveState()
+      }
     },
     ensureMatch() {
       if (this.match && this.players.length === 2) return
@@ -171,12 +199,14 @@ export const useGameStore = defineStore('game', {
           this.match.status = 'finished'
           this.match.winnerId = winnerId
           this.saveMatchSummary()
+          this.clearLiveState()
         } else {
           this.startNextLeg()
         }
       } else {
         this.activePlayerId = this.nextPlayerId(this.activePlayerId)
       }
+      this.persistLiveState()
     },
     nextPlayerId(currentId: string): string {
       const other = this.players.find((player) => player.id !== currentId)
@@ -293,6 +323,7 @@ export const useGameStore = defineStore('game', {
       this.activePlayerId = nextStarter
       this.pendingCheckout = null
       this.legWinnerId = null
+      this.persistLiveState()
     },
     saveMatchSummary() {
       if (!this.match) return
@@ -377,6 +408,78 @@ export const useGameStore = defineStore('game', {
 
       this.recalculateCounters()
       this.syncLegAfterUndo(lastTurn.legId)
+      this.persistLiveState()
+    },
+    getSnapshot(): LiveMatchSnapshot | null {
+      if (!this.match) return null
+      return {
+        match: this.match,
+        players: this.players,
+        leg: this.leg,
+        legs: this.legs,
+        turns: this.turns,
+        scores: this.scores,
+        activePlayerId: this.activePlayerId,
+        pendingCheckout: this.pendingCheckout,
+        legWinnerId: this.legWinnerId,
+        legWins: this.legWins,
+        setWins: this.setWins,
+        setLegWins: this.setLegWins,
+        updatedAt: new Date().toISOString()
+      }
+    },
+    applySnapshot(snapshot: LiveMatchSnapshot) {
+      this.match = snapshot.match
+      this.players = snapshot.players
+      this.leg = snapshot.leg
+      this.legs = snapshot.legs
+      this.turns = snapshot.turns
+      this.scores = snapshot.scores
+      this.activePlayerId = snapshot.activePlayerId
+      this.pendingCheckout = snapshot.pendingCheckout
+      this.legWinnerId = snapshot.legWinnerId
+      this.legWins = snapshot.legWins
+      this.setWins = snapshot.setWins
+      this.setLegWins = snapshot.setLegWins
+    },
+    hasLocalSnapshot(matchId: string) {
+      return Boolean(loadLocalSnapshot(matchId))
+    },
+    getLocalSnapshot(matchId: string) {
+      return loadLocalSnapshot(matchId)
+    },
+    async resumeMatch(params: { matchId: string; tournamentScope?: 'online' | 'local' }) {
+      const local = loadLocalSnapshot(params.matchId)
+      if (local) {
+        this.applySnapshot(local)
+        return
+      }
+      if (params.tournamentScope === 'online') {
+        const onlineTournamentsStore = useOnlineTournamentsStore()
+        const snapshot = await onlineTournamentsStore.fetchLiveState(params.matchId)
+        if (snapshot) {
+          this.applySnapshot(snapshot as LiveMatchSnapshot)
+          return
+        }
+      }
+      throw new Error('Kein gespeicherter Spielstand gefunden.')
+    },
+    persistLiveState() {
+      const snapshot = this.getSnapshot()
+      if (!snapshot || !this.match) return
+      saveLocalSnapshot(this.match.id, snapshot)
+      if (this.match.tournamentScope === 'online') {
+        const onlineTournamentsStore = useOnlineTournamentsStore()
+        void onlineTournamentsStore.saveLiveState(this.match.id, snapshot)
+      }
+    },
+    clearLiveState() {
+      if (!this.match) return
+      clearLocalSnapshot(this.match.id)
+      if (this.match.tournamentScope === 'online') {
+        const onlineTournamentsStore = useOnlineTournamentsStore()
+        void onlineTournamentsStore.clearLiveState(this.match.id)
+      }
     }
   }
 })

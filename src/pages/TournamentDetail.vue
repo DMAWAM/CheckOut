@@ -76,11 +76,12 @@
           </div>
 
           <div v-else class="space-y-3">
-            <button
+            <div
               v-for="match in openMatches"
               :key="match.id"
-              @click="startMatch(match.id)"
-              class="w-full flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-4 text-left hover:shadow-md transition-all"
+              class="w-full flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-4 text-left transition-all"
+              :class="match.status === 'in_progress' ? 'cursor-pointer hover:shadow-md' : ''"
+              @click="handleMatchClick(match)"
             >
               <div>
                 <div class="font-bold text-foreground">
@@ -94,11 +95,40 @@
                   · Runde {{ match.round }}
                 </div>
               </div>
-              <span class="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                Starten
-              </span>
-            </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="match.status === 'pending'"
+                  @click.stop="startMatch(match.id)"
+                  class="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold"
+                >
+                  Starten
+                </button>
+                <button
+                  v-else-if="canResumeMatch(match)"
+                  @click.stop="resumeMatch(match.id)"
+                  class="px-3 py-1 rounded-full bg-dart-gold text-white text-xs font-bold"
+                >
+                  Fortsetzen
+                </button>
+                <button
+                  v-else-if="match.status === 'in_progress'"
+                  @click.stop="openLiveMatch(match.id)"
+                  class="px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs font-bold"
+                >
+                  Live ansehen
+                </button>
+                <span
+                  v-else
+                  class="px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground"
+                >
+                  bereit
+                </span>
+              </div>
+            </div>
           </div>
+          <p v-if="matchActionError" class="text-xs text-destructive mt-3">
+            {{ matchActionError }}
+          </p>
         </div>
 
         <div class="bg-white border-2 border-border rounded-2xl p-6">
@@ -271,6 +301,14 @@
         </div>
       </div>
     </div>
+    <LiveMatchModal
+      :open="Boolean(liveMatchId)"
+      :match="liveMatch"
+      :snapshot="liveSnapshot"
+      :player-name="playerName"
+      :error="liveError"
+      @close="closeLiveMatch"
+    />
     <MatchDetailsModal
       :open="Boolean(selectedMatchId)"
       :match="selectedMatch"
@@ -303,8 +341,10 @@ import MatchPlayerStatsCard from '@/components/MatchPlayerStatsCard.vue'
 import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
 import TournamentBracket from '@/components/TournamentBracket.vue'
 import MatchDetailsModal from '@/components/MatchDetailsModal.vue'
+import LiveMatchModal from '@/components/LiveMatchModal.vue'
 import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 
 const router = useRouter()
 const route = useRoute()
@@ -337,7 +377,15 @@ const playerList = computed(() =>
 
 const matches = computed(() => tournamentsStore.getAllMatches(tournamentId.value))
 const knockoutMatches = computed(() => matches.value.filter((match) => match.phase === 'knockout'))
-const openMatches = computed(() => tournamentsStore.getReadyMatches(tournamentId.value))
+const openMatches = computed(() =>
+  matches.value
+    .filter((match) => match.status !== 'finished')
+    .slice()
+    .sort((a, b) => {
+      const rank = (status: string) => (status === 'in_progress' ? 0 : 1)
+      return rank(a.status) - rank(b.status) || a.order - b.order
+    })
+)
 const finishedMatches = computed(() => matches.value.filter((match) => match.status === 'finished'))
 const tournamentResults = computed(() =>
   tournamentsStore.results.filter((entry) => entry.tournamentId === tournamentId.value)
@@ -402,8 +450,36 @@ const selectedMatchStats = computed(() => {
   }))
 })
 
+const liveMatchId = ref<string | null>(null)
+const liveSnapshot = ref<LiveMatchSnapshot | null>(null)
+const liveError = ref('')
+const matchActionError = ref('')
+
+const liveMatch = computed(() => matches.value.find((match) => match.id === liveMatchId.value) ?? null)
+
+const openLiveMatch = (matchId: string) => {
+  selectedMatchId.value = null
+  liveMatchId.value = matchId
+  liveSnapshot.value = gameStore.getLocalSnapshot(matchId)
+  liveError.value = liveSnapshot.value ? '' : 'Kein Live-Stand gespeichert.'
+}
+
+const closeLiveMatch = () => {
+  liveMatchId.value = null
+  liveSnapshot.value = null
+  liveError.value = ''
+}
+
 const openMatchDetails = (matchId: string) => {
-  selectedMatchId.value = matchId
+  const match = matches.value.find((entry) => entry.id === matchId)
+  if (!match) return
+  if (match.status === 'in_progress') {
+    openLiveMatch(matchId)
+    return
+  }
+  if (match.status === 'finished') {
+    selectedMatchId.value = matchId
+  }
 }
 
 const closeMatchDetails = () => {
@@ -643,7 +719,25 @@ const handleDelete = () => {
   router.push('/tournaments')
 }
 
+const canResumeMatch = (match: TournamentMatch) => match.status === 'in_progress'
+
+const handleMatchClick = (match: TournamentMatch) => {
+  if (match.status !== 'in_progress') return
+  openLiveMatch(match.id)
+}
+
+const resumeMatch = async (matchId: string) => {
+  matchActionError.value = ''
+  try {
+    await gameStore.resumeMatch({ matchId, tournamentScope: 'local' })
+    router.push('/game')
+  } catch (err) {
+    matchActionError.value = (err as Error).message ?? 'Match konnte nicht fortgesetzt werden.'
+  }
+}
+
 const startMatch = (matchId: string) => {
+  matchActionError.value = ''
   const match = matches.value.find((entry) => entry.id === matchId)
   if (!match || !tournament.value) return
   const playerA = playersStore.players.find((player) => player.id === match.playerAId)

@@ -221,7 +221,8 @@ const matchScoreParts = (match: TournamentMatch) => {
   return { a: a ?? '-', b: b ?? '-' }
 }
 
-const hasDetails = (match: TournamentMatch) => Boolean(resultsByMatch.value.get(match.id))
+const hasDetails = (match: TournamentMatch) =>
+  Boolean(resultsByMatch.value.get(match.id)) || match.status === 'in_progress'
 
 const roundPairs = (matches: TournamentMatch[]) => {
   const pairs: TournamentMatch[][] = []

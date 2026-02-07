@@ -62,6 +62,14 @@ create table if not exists tournament_match_results (
   unique(match_id)
 );
 
+create table if not exists tournament_match_live (
+  match_id uuid primary key references tournament_matches(id) on delete cascade,
+  tournament_id uuid references tournaments(id) on delete cascade,
+  snapshot jsonb not null,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
 create table if not exists tournament_login_codes (
   id uuid primary key,
   tournament_id uuid references tournaments(id) on delete cascade,
@@ -203,6 +211,7 @@ alter table tournament_players enable row level security;
 alter table tournament_invites enable row level security;
 alter table tournament_matches enable row level security;
 alter table tournament_match_results enable row level security;
+alter table tournament_match_live enable row level security;
 alter table tournament_login_codes enable row level security;
 alter table friendships enable row level security;
 
@@ -319,6 +328,39 @@ to authenticated using (
   or exists (
     select 1 from tournament_matches m
     where m.id = tournament_match_results.match_id
+    and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
+  )
+);
+
+create policy "live_read" on tournament_match_live for select
+to authenticated using (
+  public.is_tournament_member(tournament_match_live.tournament_id)
+  or public.is_tournament_admin(tournament_match_live.tournament_id)
+);
+create policy "live_insert" on tournament_match_live for insert
+to authenticated with check (
+  public.is_tournament_admin(tournament_match_live.tournament_id)
+  or exists (
+    select 1 from tournament_matches m
+    where m.id = tournament_match_live.match_id
+    and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
+  )
+);
+create policy "live_update" on tournament_match_live for update
+to authenticated using (
+  public.is_tournament_admin(tournament_match_live.tournament_id)
+  or exists (
+    select 1 from tournament_matches m
+    where m.id = tournament_match_live.match_id
+    and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
+  )
+);
+create policy "live_delete" on tournament_match_live for delete
+to authenticated using (
+  public.is_tournament_admin(tournament_match_live.tournament_id)
+  or exists (
+    select 1 from tournament_matches m
+    where m.id = tournament_match_live.match_id
     and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
   )
 );
