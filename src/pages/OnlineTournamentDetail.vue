@@ -479,16 +479,19 @@ const bracketSubtitle = computed(() => {
   return legs ? `Race to ${legs} legs` : ''
 })
 
+const isMatchFinished = (match: TournamentMatch) =>
+  match.status === 'finished' || results.value.some((entry) => entry.matchId === match.id)
+
 const openMatches = computed(() =>
   matches.value
-    .filter((match) => match.status !== 'finished')
+    .filter((match) => !isMatchFinished(match))
     .slice()
     .sort((a, b) => {
       const rank = (status: string) => (status === 'in_progress' ? 0 : 1)
       return rank(a.status) - rank(b.status) || a.order - b.order
     })
 )
-const finishedMatches = computed(() => matches.value.filter((match) => match.status === 'finished'))
+const finishedMatches = computed(() => matches.value.filter((match) => isMatchFinished(match)))
 
 interface FinishedMatchEntry {
   match: TournamentMatch
@@ -589,12 +592,12 @@ const closeLiveMatch = () => {
 const openMatchDetails = (matchId: string) => {
   const match = matches.value.find((entry) => entry.id === matchId)
   if (!match) return
-  if (match.status === 'in_progress') {
-    void openLiveMatch(matchId)
+  if (isMatchFinished(match)) {
+    selectedMatchId.value = matchId
     return
   }
-  if (match.status === 'finished') {
-    selectedMatchId.value = matchId
+  if (match.status === 'in_progress') {
+    void openLiveMatch(matchId)
   }
 }
 
@@ -941,7 +944,7 @@ const canResumeMatch = (match: TournamentMatch) => {
   const userId = auth.session?.user?.id
   if (!userId) return false
   const isParticipant = match.playerAId === userId || match.playerBId === userId
-  return isParticipant && match.status === 'in_progress'
+  return isParticipant && match.status === 'in_progress' && !isMatchFinished(match)
 }
 
 const handleMatchClick = (match: TournamentMatch) => {

@@ -376,14 +376,15 @@ const setInputMode = (mode: 'total' | 'individual') => {
 const handleDartScore = (score: number) => {
   if (isInputDisabled.value) return
   if (currentThrows.value.length >= 3) return
-  const newThrows = [...currentThrows.value, { score, multiplier: currentMultiplier.value }]
+  const multiplier = score === 25 && currentMultiplier.value === 3 ? 2 : currentMultiplier.value
+  const newThrows = [...currentThrows.value, { score, multiplier }]
   currentThrows.value = newThrows
 
   const startedScore = game.activePlayerId ? (game.scores[game.activePlayerId] ?? 0) : 0
   const total = newThrows.reduce((sum, t) => sum + t.score * t.multiplier, 0)
   const remaining = startedScore - total
   const requiresDouble = game.match?.doubleOut ?? true
-  const lastIsDouble = currentMultiplier.value === 2
+  const lastIsDouble = multiplier === 2
   const isCheckout = remaining === 0 && (!requiresDouble || lastIsDouble)
 
   if (isCheckout) {

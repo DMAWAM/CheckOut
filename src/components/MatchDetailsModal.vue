@@ -23,7 +23,7 @@
       </div>
 
       <div class="flex items-center justify-between text-xs text-muted-foreground font-semibold mb-4">
-        <span>Status: {{ statusLabel(match.status) }}</span>
+        <span>Status: {{ statusLabel(displayStatus) }}</span>
         <span v-if="match.endedAt">Beendet: {{ formatDate(match.endedAt) }}</span>
       </div>
 
@@ -38,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import MatchPlayerStatsCard from '@/components/MatchPlayerStatsCard.vue'
 import type { TournamentMatch } from '@/domain/models'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
@@ -58,6 +59,8 @@ const statusLabel = (status: string) => {
   if (status === 'in_progress') return 'läuft'
   return 'bereit'
 }
+
+const displayStatus = computed(() => (props.stats.length > 0 ? 'finished' : props.match?.status ?? 'pending'))
 
 const formatDate = (value: string) => {
   const date = new Date(value)

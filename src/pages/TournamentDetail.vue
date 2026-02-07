@@ -377,16 +377,19 @@ const playerList = computed(() =>
 
 const matches = computed(() => tournamentsStore.getAllMatches(tournamentId.value))
 const knockoutMatches = computed(() => matches.value.filter((match) => match.phase === 'knockout'))
+const isMatchFinished = (match: TournamentMatch) =>
+  match.status === 'finished' || Boolean(tournamentsStore.getResultsByMatch(match.id))
+
 const openMatches = computed(() =>
   matches.value
-    .filter((match) => match.status !== 'finished')
+    .filter((match) => !isMatchFinished(match))
     .slice()
     .sort((a, b) => {
       const rank = (status: string) => (status === 'in_progress' ? 0 : 1)
       return rank(a.status) - rank(b.status) || a.order - b.order
     })
 )
-const finishedMatches = computed(() => matches.value.filter((match) => match.status === 'finished'))
+const finishedMatches = computed(() => matches.value.filter((match) => isMatchFinished(match)))
 const tournamentResults = computed(() =>
   tournamentsStore.results.filter((entry) => entry.tournamentId === tournamentId.value)
 )
@@ -473,12 +476,12 @@ const closeLiveMatch = () => {
 const openMatchDetails = (matchId: string) => {
   const match = matches.value.find((entry) => entry.id === matchId)
   if (!match) return
-  if (match.status === 'in_progress') {
-    openLiveMatch(matchId)
+  if (isMatchFinished(match)) {
+    selectedMatchId.value = matchId
     return
   }
-  if (match.status === 'finished') {
-    selectedMatchId.value = matchId
+  if (match.status === 'in_progress') {
+    openLiveMatch(matchId)
   }
 }
 
@@ -719,7 +722,8 @@ const handleDelete = () => {
   router.push('/tournaments')
 }
 
-const canResumeMatch = (match: TournamentMatch) => match.status === 'in_progress'
+const canResumeMatch = (match: TournamentMatch) =>
+  match.status === 'in_progress' && !isMatchFinished(match)
 
 const handleMatchClick = (match: TournamentMatch) => {
   if (match.status !== 'in_progress') return
