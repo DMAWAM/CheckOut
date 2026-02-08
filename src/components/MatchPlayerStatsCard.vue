@@ -1,8 +1,17 @@
 <template>
-  <div class="bg-white border-2 border-border rounded-2xl p-6 shadow-sm">
+  <div
+    class="bg-white border-2 rounded-2xl p-6 shadow-sm"
+    :class="stat.isWinner ? 'border-primary/70 shadow-lg shadow-primary/20' : 'border-border'"
+  >
     <div class="flex items-center justify-between mb-4">
-      <div class="text-lg font-bold text-foreground">{{ stat.name }}</div>
-      <div class="text-sm font-semibold text-muted-foreground">
+      <div class="text-lg font-bold" :class="stat.isWinner ? 'text-primary' : 'text-foreground'">
+        {{ stat.name }}
+      </div>
+      <div
+        class="text-sm font-semibold flex items-center gap-1"
+        :class="stat.isWinner ? 'text-primary' : 'text-muted-foreground'"
+      >
+        <i v-if="stat.isWinner" class="pi pi-trophy text-dart-gold" />
         {{ stat.isWinner ? 'Sieger' : 'Spieler' }}
       </div>
     </div>
