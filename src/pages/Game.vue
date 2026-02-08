@@ -12,10 +12,10 @@
       </div>
 
       <button
-        @click="router.push('/')"
+        @click="goAfterMatch"
         class="bg-primary text-primary-foreground rounded-2xl py-5 px-10 text-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-98"
       >
-        Zum Hauptmenü
+        {{ postMatchLabel }}
       </button>
     </div>
 
@@ -282,6 +282,18 @@ const winnerName = computed(() => {
   const winnerId = game.match?.winnerId
   return game.players.find((player) => player.id === winnerId)?.name ?? ''
 })
+const postMatchRoute = computed(() => {
+  if (!game.match?.tournamentId) return '/'
+  if (game.match.tournamentScope === 'online') {
+    return `/tournaments/online/${game.match.tournamentId}`
+  }
+  return `/tournaments/${game.match.tournamentId}`
+})
+const postMatchLabel = computed(() => (game.match?.tournamentId ? 'Zurück zum Turnier' : 'Zum Hauptmenü'))
+
+const goAfterMatch = () => {
+  router.push(postMatchRoute.value)
+}
 
 const showCheckoutDialog = computed(() => game.pendingCheckout !== null)
 const isInputDisabled = computed(() => game.legWinnerId !== null)
