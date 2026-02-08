@@ -74,6 +74,7 @@ export interface Tournament {
       knockout?: MatchFormat
       knockoutRounds?: Record<string, MatchFormat>
     }
+    description?: string
     groupCount?: number
     startingScore?: number
   }

@@ -67,6 +67,19 @@
           </div>
 
           <div>
+            <label class="block text-sm font-semibold text-foreground mb-2">Beschreibung (optional)</label>
+            <textarea
+              v-model="tournamentDescription"
+              rows="4"
+              placeholder="Kurzer Text, der im Turnier-Info angezeigt wird."
+              class="w-full px-4 py-3 border-2 border-border rounded-xl focus:border-primary focus:outline-none bg-background text-foreground"
+            />
+            <p class="text-xs text-muted-foreground mt-2">
+              Dieser Text erscheint später in der Turnierübersicht.
+            </p>
+          </div>
+
+          <div>
             <label class="block text-sm font-semibold text-foreground mb-2">Turniermodus</label>
             <div class="grid grid-cols-3 gap-3">
               <button
@@ -721,6 +734,7 @@ const newPlayerName = ref('')
 const selectedPlayerIds = ref<string[]>([])
 const groupCount = ref(1)
 const errorMessage = ref('')
+const tournamentDescription = ref('')
 
 const doubleOut = ref(true)
 const startingScore = ref<301 | 501 | 701>(501)
@@ -937,6 +951,7 @@ const createTournament = async () => {
   if (!canCreate.value) return
   errorMessage.value = ''
   const baseFormatValue = buildFormat(baseFormat)
+  const descriptionValue = tournamentDescription.value.trim() || undefined
   const formatByPhase = usePhaseFormats.value
     ? {
       roundRobin: tournamentType.value !== 'knockout' ? buildFormat(groupFormat) : undefined,
@@ -964,6 +979,7 @@ const createTournament = async () => {
           doubleOut: doubleOut.value,
           format: baseFormatValue,
           formatByPhase: normalizedFormatByPhase,
+          description: descriptionValue,
           groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
           startingScore: startingScore.value
         }
@@ -984,6 +1000,7 @@ const createTournament = async () => {
       doubleOut: doubleOut.value,
       format: baseFormatValue,
       formatByPhase: normalizedFormatByPhase,
+      description: descriptionValue,
       groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
       startingScore: startingScore.value
     },

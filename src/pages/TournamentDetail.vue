@@ -41,7 +41,44 @@
     </div>
 
     <div class="px-6 py-6 space-y-6">
-      <div v-if="activeTab === 'players'" class="bg-white border-2 border-border rounded-2xl p-6">
+      <div v-if="activeTab === 'info'" class="space-y-6">
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h2 class="text-lg font-bold text-foreground mb-4">Turnier-Info</h2>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div
+              v-for="row in infoRows"
+              :key="row.label"
+              class="flex items-center justify-between bg-muted/30 border-2 border-border rounded-xl px-4 py-3"
+            >
+              <span class="text-sm font-semibold text-muted-foreground">{{ row.label }}</span>
+              <span class="text-sm font-bold text-foreground text-right">{{ row.value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-foreground mb-3">Spiel-Format</h3>
+          <div class="space-y-3">
+            <div
+              v-for="row in formatSummaryRows"
+              :key="row.label"
+              class="flex items-center justify-between bg-muted/20 border-2 border-border rounded-xl px-4 py-3"
+            >
+              <span class="text-sm font-semibold text-muted-foreground">{{ row.label }}</span>
+              <span class="text-sm font-bold text-foreground text-right">{{ row.value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-foreground mb-3">Beschreibung</h3>
+          <p class="text-sm text-foreground whitespace-pre-line">
+            {{ tournamentDescription || 'Keine Beschreibung hinterlegt.' }}
+          </p>
+        </div>
+      </div>
+
+      <div v-else-if="activeTab === 'players'" class="bg-white border-2 border-border rounded-2xl p-6">
         <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
         <div v-if="playerList.length === 0" class="text-sm text-muted-foreground">Keine Spieler.</div>
         <div v-else class="space-y-3">
@@ -332,7 +369,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { usePlayersStore } from '@/stores/playersStore'
 import { useTournamentsStore } from '@/stores/tournamentsStore'
 import { useGameStore } from '@/stores/gameStore'
-import type { TournamentMatch } from '@/domain/models'
+import type { MatchFormat, TournamentMatch } from '@/domain/models'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
 import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
 import TournamentBracket from '@/components/TournamentBracket.vue'
@@ -349,9 +386,10 @@ const tournamentsStore = useTournamentsStore()
 const playersStore = usePlayersStore()
 const gameStore = useGameStore()
 
-const activeTab = ref<'players' | 'matches' | 'standings' | 'stats'>('standings')
-const tabs = ['players', 'matches', 'standings', 'stats'] as const
+const activeTab = ref<'info' | 'players' | 'matches' | 'standings' | 'stats'>('standings')
+const tabs = ['info', 'players', 'matches', 'standings', 'stats'] as const
 const tabLabels = computed<Record<typeof tabs[number], string>>(() => ({
+  info: 'Info',
   players: 'Spieler',
   matches: 'Spielplan',
   standings: tournament.value?.mode === 'round_robin' ? 'Tabelle' : 'K.O.-Baum',
@@ -679,6 +717,7 @@ const modeLabel = computed(() => {
   return 'Kombi'
 })
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
+const tournamentDescription = computed(() => tournament.value?.settings.description ?? '')
 const hasKnockoutRoundOverrides = computed(() => {
   const overrides = tournament.value?.settings.formatByPhase?.knockoutRounds
   return overrides ? Object.keys(overrides).length > 0 : false
@@ -698,6 +737,81 @@ const bracketSubtitle = computed(() => {
   }
   const legs = format.legsToWin ?? format.bestOf
   return legs ? `Race to ${legs} legs` : ''
+})
+
+const formatLabel = (format?: MatchFormat) => {
+  if (!format) return 'Standard'
+  if (format.useSets) {
+    const setsTarget = format.setsToWin ?? format.legsToWin ?? 1
+    const legsPerSet = format.legsPerSet ?? 1
+    const base = format.type === 'best_of'
+      ? `Best of ${format.bestOf ?? setsTarget * 2 - 1}`
+      : `Race to ${setsTarget}`
+    return `${base} Sets · ${legsPerSet} Legs/Set`
+  }
+  if (format.type === 'best_of') {
+    const bestOf = format.bestOf ?? (format.legsToWin ? format.legsToWin * 2 - 1 : undefined)
+    return bestOf ? `Best of ${bestOf} Legs` : 'Best-of'
+  }
+  return format.legsToWin ? `Race to ${format.legsToWin} Legs` : 'Race to'
+}
+
+const knockoutRoundLabel = (round: number) => {
+  const firstRoundMatches = knockoutMatches.value.filter((match) => match.round === 1)
+  const firstRoundSize = firstRoundMatches.length * 2
+  if (!firstRoundSize) return `Runde ${round}`
+  const size = firstRoundSize / Math.pow(2, round - 1)
+  if (size >= 8) return `Top ${size}`
+  if (size === 4) return 'Halbfinale'
+  if (size === 2) return 'Finale'
+  return `Runde ${round}`
+}
+
+const formatSummaryRows = computed(() => {
+  if (!tournament.value) return []
+  const settings = tournament.value.settings
+  const byPhase = settings.formatByPhase
+  const rows: Array<{ label: string; value: string }> = []
+  if (tournament.value.mode !== 'knockout') {
+    rows.push({
+      label: 'Gruppenphase',
+      value: formatLabel(byPhase?.roundRobin ?? settings.format)
+    })
+  }
+  if (tournament.value.mode !== 'round_robin') {
+    rows.push({
+      label: 'K.O.-Phase',
+      value: formatLabel(byPhase?.knockout ?? settings.format)
+    })
+    const overrides = byPhase?.knockoutRounds ?? {}
+    Object.keys(overrides)
+      .map((round) => Number(round))
+      .sort((a, b) => a - b)
+      .forEach((round) => {
+        const value = formatLabel(overrides[String(round)])
+        rows.push({ label: knockoutRoundLabel(round), value })
+      })
+  }
+  if (rows.length === 0) {
+    rows.push({ label: 'Match-Format', value: formatLabel(settings.format) })
+  }
+  return rows
+})
+
+const infoRows = computed(() => {
+  if (!tournament.value) return []
+  const scopeLabel = tournament.value.scope === 'online' ? 'Online' : 'Lokal'
+  const groups = tournament.value.mode === 'knockout' ? 1 : groupCount.value
+  return [
+    { label: 'Turnierart', value: scopeLabel },
+    { label: 'Modus', value: modeLabel.value },
+    { label: 'Gruppen', value: `${groups}` },
+    { label: 'Teilnehmer', value: `${playerList.value.length}` },
+    {
+      label: 'Spielmodus',
+      value: `${tournamentStartingScore.value} · ${tournament.value.settings.doubleOut ? 'Double-Out' : 'Single-Out'}`
+    }
+  ]
 })
 
 const formatDate = (value?: string) => {
