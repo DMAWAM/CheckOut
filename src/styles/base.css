@@ -14,12 +14,20 @@ input {
   font-family: var(--font-family);
 }
 
-button {
+a,
+button,
+[role='button'],
+.clickable,
+.cursor-pointer {
   cursor: pointer;
   transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
-button:hover:not(:disabled) {
+a:hover,
+button:hover:not(:disabled),
+[role='button']:hover,
+.clickable:hover,
+.cursor-pointer:hover {
   filter: brightness(0.98);
 }
 
