@@ -64,30 +64,31 @@
           <p class="text-sm text-muted-foreground">Starte dein erstes Match!</p>
         </div>
 
-        <div v-else class="space-y-6">
-          <div v-for="match in recentMatches" :key="match.id" class="bg-muted/30 border-2 border-border rounded-2xl p-5 shadow-sm">
-            <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div v-else class="space-y-3">
+          <div
+            v-for="match in recentMatches"
+            :key="match.id"
+            class="bg-muted/30 border-2 border-border rounded-2xl p-4 shadow-sm"
+          >
+            <div class="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div class="text-lg font-bold text-foreground">
+                <div class="text-base font-bold text-foreground">
                   {{ match.players.map((player) => player.name).join(' vs ') }}
                 </div>
                 <div class="text-xs text-muted-foreground font-semibold">
                   {{ match.startingScore ?? match.mode }} · {{ match.doubleOut ? 'Double-Out' : 'Single-Out' }}
+                  <span v-if="matchScore(match)"> · {{ matchScore(match) }}</span>
                 </div>
               </div>
               <div class="flex items-center gap-3">
                 <div class="text-xs text-muted-foreground font-semibold">{{ formatDate(match.endedAt) }}</div>
-                <RouterLink
-                  :to="`/matches/${match.id}`"
+                <button
                   class="bg-primary text-primary-foreground rounded-xl px-4 py-2 text-xs font-bold shadow-sm hover:shadow-md transition-all"
+                  @click="openMatch(match.id)"
                 >
                   Details
-                </RouterLink>
+                </button>
               </div>
-            </div>
-
-            <div class="grid gap-4">
-              <MatchPlayerStatsCard v-for="stat in match.stats" :key="stat.playerId" :stat="stat" />
             </div>
           </div>
         </div>
@@ -120,17 +121,40 @@
       </div>
     </div>
   </div>
+
+  <MatchSummaryModal :open="Boolean(selectedMatch)" :match="selectedMatch" @close="closeMatch" />
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useMatchHistoryStore } from '@/stores/matchHistoryStore'
-import MatchPlayerStatsCard from '@/components/MatchPlayerStatsCard.vue'
+import MatchSummaryModal from '@/components/MatchSummaryModal.vue'
+import type { MatchSummary } from '@/domain/matchSummary'
 
 const auth = useAuthStore()
 const matchHistory = useMatchHistoryStore()
 const recentMatches = computed(() => matchHistory.matches)
+
+const selectedMatchId = ref<string | null>(null)
+const selectedMatch = computed<MatchSummary | null>(() => {
+  if (!selectedMatchId.value) return null
+  return matchHistory.matches.find((match) => match.id === selectedMatchId.value) ?? null
+})
+
+const openMatch = (matchId: string) => {
+  selectedMatchId.value = matchId
+}
+
+const closeMatch = () => {
+  selectedMatchId.value = null
+}
+
+const matchScore = (match: MatchSummary) => {
+  if (!match.stats || match.stats.length < 2) return ''
+  const [a, b] = match.stats
+  return `${a.legsWon}:${b.legsWon}`
+}
 
 const formatDate = (iso: string) => {
   const date = new Date(iso)

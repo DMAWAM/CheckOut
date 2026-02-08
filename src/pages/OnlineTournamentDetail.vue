@@ -240,15 +240,15 @@
           <div v-if="finishedMatchesDetailed.length === 0" class="text-sm text-muted-foreground">
             Noch keine Ergebnisse.
           </div>
-          <div v-else class="space-y-6">
+          <div v-else class="space-y-3">
             <div
               v-for="entry in paginatedFinishedMatches"
               :key="entry.match.id"
-              class="bg-muted/30 border-2 border-border rounded-2xl p-5 shadow-sm"
+              class="bg-muted/30 border-2 border-border rounded-2xl p-4 shadow-sm"
             >
-              <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div class="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <div class="text-lg font-bold text-foreground">
+                  <div class="text-base font-bold text-foreground">
                     {{ playerName(entry.match.playerAId) }} vs {{ playerName(entry.match.playerBId) }}
                   </div>
                   <div class="text-xs text-muted-foreground font-semibold">
@@ -257,15 +257,20 @@
                       · Gruppe {{ groupLabel(entry.match.groupIndex) }}
                     </span>
                     · Runde {{ entry.match.round }}
+                    <span v-if="matchScore(entry)"> · {{ matchScore(entry) }}</span>
                   </div>
                 </div>
-                <div class="text-xs text-muted-foreground font-semibold">
-                  {{ formatDate(entry.match.endedAt) }}
+                <div class="flex items-center gap-3">
+                  <div class="text-xs text-muted-foreground font-semibold">
+                    {{ formatDate(entry.match.endedAt) }}
+                  </div>
+                  <button
+                    class="bg-primary text-primary-foreground rounded-xl px-4 py-2 text-xs font-bold shadow-sm hover:shadow-md transition-all"
+                    @click="openMatchDetails(entry.match.id)"
+                  >
+                    Details
+                  </button>
                 </div>
-              </div>
-
-              <div class="grid gap-4">
-                <MatchPlayerStatsCard v-for="stat in entry.stats" :key="stat.playerId" :stat="stat" />
               </div>
             </div>
           </div>
@@ -429,7 +434,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
-import MatchPlayerStatsCard from '@/components/MatchPlayerStatsCard.vue'
 import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
 import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.vue'
 import TournamentBracket from '@/components/TournamentBracket.vue'
@@ -918,6 +922,12 @@ const formatDate = (value?: string) => {
 
 const pageKey = (page: number) => `page-${page}`
 const groupKey = (groupIndex: number) => `group-${groupIndex}`
+
+const matchScore = (entry: FinishedMatchEntry) => {
+  if (entry.stats.length < 2) return ''
+  const [a, b] = entry.stats
+  return `${a.legsWon}:${b.legsWon}`
+}
 
 const showDeleteDialog = ref(false)
 const deleteError = ref('')
