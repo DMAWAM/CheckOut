@@ -14,6 +14,19 @@ input {
   font-family: var(--font-family);
 }
 
+button {
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(0.98);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 #app {
   min-height: 100vh;
 }
