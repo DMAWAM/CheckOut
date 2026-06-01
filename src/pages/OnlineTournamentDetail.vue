@@ -149,12 +149,13 @@
             </button>
           </div>
           <p class="text-sm text-muted-foreground">
-            Gib die Spielernamen ein (eine Zeile pro Spieler). Wir erstellen Username + Code und erzeugen QR-Codes.
+            Gib die Spielernamen ein oder kopiere Gruppenzeilen aus Excel. Wir erstellen Username + Code,
+            erzeugen QR-Codes und übernehmen erkannte Gruppenzuteilungen.
           </p>
           <textarea
             v-model="newPlayersInput"
             rows="6"
-            placeholder="Max Mustermann&#10;Mike Beispiel&#10;..."
+            placeholder="Max Mustermann&#10;Mike Beispiel&#10;&#10;Oder aus Excel:&#10;A	Christian Dick	Michel Tieche	Elias Wettstein	Anika Nobel&#10;B	Sven Anderegg	Gianluca Civelli	..."
             class="w-full px-4 py-3 border-2 border-border rounded-xl focus:border-primary focus:outline-none bg-background text-foreground"
           />
           <div class="flex flex-wrap items-center gap-3">
@@ -1047,24 +1048,87 @@ watch(
   { immediate: true }
 )
 
-const parseNames = () =>
-  newPlayersInput.value
-    .split(/\n|,|;/)
-    .map((value) => value.trim())
-    .filter(Boolean)
+const normalizeImportedName = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+
+const groupLabelToIndex = (label: string) => {
+  const normalized = label.trim().toUpperCase()
+  if (!/^[A-Z]{1,2}$/.test(normalized)) return undefined
+  return normalized.split('').reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1
+}
+
+const splitImportLine = (line: string) => {
+  if (line.includes('\t')) return line.split('\t')
+  return line.replace(':', ';').split(/[;,]/)
+}
+
+const parsePlayerImport = () => {
+  const names: string[] = []
+  const assignments: Array<{ name: string; groupIndex: number }> = []
+  const seenNames = new Set<string>()
+  let requiredGroupCount = groupCount.value
+
+  const addName = (name: string, groupIndex?: number) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const normalized = normalizeImportedName(trimmed)
+    if (!seenNames.has(normalized)) {
+      names.push(trimmed)
+      seenNames.add(normalized)
+    }
+    if (groupIndex !== undefined) {
+      assignments.push({ name: trimmed, groupIndex })
+    }
+  }
+
+  newPlayersInput.value.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line) return
+    const parts = splitImportLine(line).map((value) => value.trim()).filter(Boolean)
+    if (parts.length === 0) return
+    const groupIndex = parts.length > 1 ? groupLabelToIndex(parts[0]) : undefined
+    if (groupIndex !== undefined && groupIndex >= 0 && groupIndex < maxGroupCount.value) {
+      requiredGroupCount = Math.max(requiredGroupCount, groupIndex + 1)
+      parts.slice(1).forEach((name) => addName(name, groupIndex))
+      return
+    }
+    parts.forEach((name) => addName(name))
+  })
+
+  return { names, assignments, requiredGroupCount }
+}
 
 const generatePlayerLogins = async () => {
   generateError.value = ''
   generateInfo.value = ''
   if (!tournamentId.value) return
-  const names = parseNames()
-  if (names.length === 0) {
+  const imported = parsePlayerImport()
+  if (imported.names.length === 0) {
     generateError.value = 'Bitte mindestens einen Namen eingeben.'
     return
   }
   try {
-    const codes = await onlineStore.generateLoginCodes(tournamentId.value, names)
-    generateInfo.value = `${codes.length} Logins erstellt.`
+    const codes = await onlineStore.generateLoginCodes(tournamentId.value, imported.names)
+    if (imported.assignments.length > 0) {
+      if (imported.requiredGroupCount !== groupCount.value) {
+        await onlineStore.setTournamentGroupCount(tournamentId.value, imported.requiredGroupCount)
+      }
+      const playersByName = new Map(
+        onlineStore.players.map((player) => [normalizeImportedName(player.name), player.id])
+      )
+      for (const assignment of imported.assignments) {
+        const playerId = playersByName.get(normalizeImportedName(assignment.name))
+        if (playerId) {
+          await onlineStore.setPlayerGroup(tournamentId.value, playerId, assignment.groupIndex)
+        }
+      }
+    }
+    generateInfo.value = `${codes.length} Logins erstellt${imported.assignments.length ? ' und Gruppen zugeteilt' : ''}.`
     newPlayersInput.value = ''
     await buildQrCodes(codes)
   } catch (err) {
