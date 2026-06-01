@@ -10,7 +10,12 @@ import type {
   TournamentPlayer
 } from '@/domain/models'
 import { createId } from '@/domain/id'
-import { buildKnockoutSeedPairs, distributePlayersToGroups, generateRoundRobinRounds } from '@/domain/tournamentScheduler'
+import {
+  buildGroupsFromAssignments,
+  buildKnockoutSeedPairs,
+  distributePlayersToGroups,
+  generateRoundRobinRounds
+} from '@/domain/tournamentScheduler'
 import { calculateLeaderboardsFromData, calculateStandingsFromData } from '@/domain/tournamentStats'
 
 interface TournamentStorage {
@@ -66,7 +71,7 @@ export const useTournamentsStore = defineStore('tournaments', {
       state.tournamentPlayers.filter((entry) => entry.tournamentId === tournamentId).map((entry) => entry.playerId),
     getTournamentPlayersByGroup: (state) => (tournamentId: string, groupIndex: number) => {
       const direct = state.tournamentPlayers
-        .filter((entry) => entry.tournamentId === tournamentId && (entry.groupIndex ?? 0) === groupIndex)
+        .filter((entry) => entry.tournamentId === tournamentId && entry.groupIndex === groupIndex)
         .map((entry) => entry.playerId)
       if (direct.length > 0) return direct
       const inferred = new Set<string>()
@@ -140,6 +145,8 @@ export const useTournamentsStore = defineStore('tournaments', {
           knockoutRounds?: Record<string, MatchFormat>
         }
         groupCount?: number
+        description?: string
+        startingScore?: number
       }
       playerIds: string[]
     }) {
@@ -174,7 +181,24 @@ export const useTournamentsStore = defineStore('tournaments', {
       if (existing) return
 
       if (mode === 'round_robin' || mode === 'combined') {
-        const groups = distributePlayersToGroups(playerIds, groupCount)
+        const assignments = new Map(
+          this.tournamentPlayers
+            .filter((entry) => entry.tournamentId === tournamentId)
+            .map((entry) => [entry.playerId, entry.groupIndex] as const)
+        )
+        const groups = buildGroupsFromAssignments(playerIds, groupCount, assignments)
+        const invalidGroup = groups.find((group) => group.length === 1)
+        if (invalidGroup) {
+          throw new Error('Jede belegte Gruppe braucht mindestens 2 Spieler.')
+        }
+        groups.forEach((groupPlayers, groupIndex) => {
+          groupPlayers.forEach((playerId) => {
+            const entry = this.tournamentPlayers.find(
+              (player) => player.tournamentId === tournamentId && player.playerId === playerId
+            )
+            if (entry) entry.groupIndex = groupIndex
+          })
+        })
         let order = this.matches.length + 1
         groups.forEach((groupPlayers, groupIndex) => {
           if (groupPlayers.length < 2) return
@@ -201,6 +225,50 @@ export const useTournamentsStore = defineStore('tournaments', {
         this.createKnockoutRound(tournamentId, playerIds, 1, 'knockout')
       }
 
+      this.persist()
+    },
+    setTournamentGroupCount(tournamentId: string, groupCount: number) {
+      const tournament = this.tournaments.find((entry) => entry.id === tournamentId)
+      if (!tournament || tournament.mode === 'knockout') return
+      const playerCount = this.tournamentPlayers.filter((entry) => entry.tournamentId === tournamentId).length
+      const maxGroups = Math.max(1, Math.floor(playerCount / 2))
+      const nextGroupCount = Math.max(1, Math.min(Math.floor(groupCount), maxGroups))
+      tournament.settings.groupCount = nextGroupCount
+      this.tournamentPlayers
+        .filter((entry) => entry.tournamentId === tournamentId)
+        .forEach((entry) => {
+          if ((entry.groupIndex ?? 0) >= nextGroupCount) {
+            entry.groupIndex = nextGroupCount - 1
+          }
+        })
+      this.persist()
+    },
+    setPlayerGroup(tournamentId: string, playerId: string, groupIndex?: number) {
+      const tournament = this.tournaments.find((entry) => entry.id === tournamentId)
+      if (!tournament || tournament.mode === 'knockout') return
+      const groupCount = tournament.settings.groupCount ?? 1
+      const entry = this.tournamentPlayers.find(
+        (player) => player.tournamentId === tournamentId && player.playerId === playerId
+      )
+      if (!entry) return
+      entry.groupIndex = groupIndex === undefined
+        ? undefined
+        : Math.max(0, Math.min(Math.floor(groupIndex), groupCount - 1))
+      this.persist()
+    },
+    regenerateMatchesFromGroups(tournamentId: string) {
+      const tournament = this.tournaments.find((entry) => entry.id === tournamentId)
+      if (!tournament) return
+      const hasLockedMatch = this.matches.some(
+        (match) => match.tournamentId === tournamentId && match.status !== 'pending'
+      )
+      const hasResult = this.results.some((entry) => entry.tournamentId === tournamentId)
+      if (hasLockedMatch || hasResult) {
+        throw new Error('Der Spielplan kann nicht mehr neu erstellt werden, sobald ein Spiel läuft oder beendet ist.')
+      }
+      this.matches = this.matches.filter((match) => match.tournamentId !== tournamentId)
+      const playerIds = this.getTournamentPlayers(tournamentId)
+      this.generateMatches(tournamentId, tournament.mode, playerIds, tournament.settings.groupCount ?? 1)
       this.persist()
     },
     createKnockoutRound(tournamentId: string, seededPlayers: string[], round: number, phase: TournamentPhase) {

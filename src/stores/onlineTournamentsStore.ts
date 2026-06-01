@@ -10,7 +10,11 @@ import type {
 } from '@/domain/models'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { calculateLeaderboardsFromData, calculateStandingsFromData } from '@/domain/tournamentStats'
-import { buildKnockoutSeedPairs, distributePlayersToGroups, generateRoundRobinRounds } from '@/domain/tournamentScheduler'
+import {
+  buildGroupsFromAssignments,
+  buildKnockoutSeedPairs,
+  generateRoundRobinRounds
+} from '@/domain/tournamentScheduler'
 import { useAuthStore } from '@/stores/authStore'
 import { createId } from '@/domain/id'
 
@@ -80,7 +84,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
     standingsByGroup: (state) => (groupIndex?: number) => {
       if (!state.currentTournament) return []
       const playerIds = state.players
-        .filter((player) => groupIndex === undefined || (player.groupIndex ?? 0) === groupIndex)
+        .filter((player) => groupIndex === undefined || player.groupIndex === groupIndex)
         .map((player) => player.id)
       return calculateStandingsFromData({
         playerIds,
@@ -138,6 +142,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
           knockoutRounds?: Record<string, MatchFormat>
         }
         groupCount?: number
+        description?: string
         startingScore?: number
       }
     }) {
@@ -304,7 +309,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
             id: row.player_id,
             name: profile?.display_name ?? profile?.username ?? row.player_id,
             username: profile?.username ?? row.player_id,
-            groupIndex: row.group_index ?? inferredGroupIndex ?? 0
+            groupIndex: row.group_index ?? inferredGroupIndex
           }
         })
       this.matches =
@@ -410,7 +415,17 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         throw new Error('Mindestens 2 Spieler erforderlich')
       }
 
-      const groups = distributePlayersToGroups(this.players.map((p) => p.id), groupCount)
+      const existing = this.matches.length > 0
+      if (existing) return
+
+      const assignments = new Map(this.players.map((player) => [player.id, player.groupIndex] as const))
+      const groups = buildGroupsFromAssignments(this.players.map((p) => p.id), groupCount, assignments)
+      if (this.currentTournament.mode !== 'knockout') {
+        const invalidGroup = groups.find((group) => group.length === 1)
+        if (invalidGroup) {
+          throw new Error('Jede belegte Gruppe braucht mindestens 2 Spieler.')
+        }
+      }
       await Promise.all(
         groups.map((groupPlayers, groupIndex) =>
           Promise.all(
@@ -424,9 +439,6 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
           )
         )
       )
-
-      const existing = this.matches.length > 0
-      if (existing) return
 
       let order = 1
       const inserts: TournamentMatch[] = []
@@ -494,6 +506,71 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         }
       }
       await this.fetchTournamentDetail(tournamentId)
+    },
+    async setTournamentGroupCount(tournamentId: string, groupCount: number) {
+      if (!this.currentTournament || this.currentTournament.id !== tournamentId) return
+      if (this.currentTournament.mode === 'knockout') return
+      if (this.matches.length > 0) {
+        throw new Error('Die Gruppenzahl kann nach der Spielplan-Erstellung nicht mehr geändert werden.')
+      }
+      const normalizedGroupCount = Math.max(1, Math.min(32, Math.floor(groupCount)))
+      const nextSettings = {
+        ...this.currentTournament.settings,
+        groupCount: normalizedGroupCount
+      }
+      const { error } = await supabase
+        .from('tournaments')
+        .update({ settings: nextSettings })
+        .eq('id', tournamentId)
+      if (error) {
+        throw new Error(error.message)
+      }
+      this.currentTournament = {
+        ...this.currentTournament,
+        settings: nextSettings
+      }
+      this.players = this.players.map((player) => ({
+        ...player,
+        groupIndex:
+          player.groupIndex !== undefined && player.groupIndex >= normalizedGroupCount
+            ? normalizedGroupCount - 1
+            : player.groupIndex
+      }))
+      await Promise.all(
+        this.players
+          .filter((player) => player.groupIndex !== undefined)
+          .map((player) =>
+            supabase
+              .from('tournament_players')
+              .update({ group_index: player.groupIndex })
+              .eq('tournament_id', tournamentId)
+              .eq('player_id', player.id)
+          )
+      )
+    },
+    async setPlayerGroup(tournamentId: string, playerId: string, groupIndex?: number) {
+      if (!this.currentTournament || this.currentTournament.id !== tournamentId) return
+      if (this.currentTournament.mode === 'knockout') return
+      if (this.matches.length > 0) {
+        throw new Error('Die Gruppenzuteilung kann nach der Spielplan-Erstellung nicht mehr geändert werden.')
+      }
+      const groupCount = this.currentTournament.settings.groupCount ?? 1
+      const normalizedGroupIndex = groupIndex === undefined
+        ? null
+        : Math.max(0, Math.min(Math.floor(groupIndex), groupCount - 1))
+      const { error } = await supabase
+        .from('tournament_players')
+        .update({ group_index: normalizedGroupIndex })
+        .eq('tournament_id', tournamentId)
+        .eq('player_id', playerId)
+      if (error) {
+        throw new Error(error.message)
+      }
+      this.players = this.players.map((player) => (
+        player.id === playerId
+          ? { ...player, groupIndex: normalizedGroupIndex ?? undefined }
+          : player
+      ))
     },
     async markMatchInProgress(matchId: string) {
       await supabase

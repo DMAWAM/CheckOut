@@ -94,13 +94,29 @@
                   v-if="groupCount > 1"
                   class="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full"
                 >
-                  Gruppe {{ groupLabel(player.groupIndex ?? 0) }}
+                  {{ playerGroupBadge(player.groupIndex) }}
                 </span>
               </div>
               <span class="text-xs text-muted-foreground">@{{ player.username }}</span>
             </div>
           </div>
         </div>
+
+        <GroupAssignmentPanel
+          v-if="tournament && tournament.mode !== 'knockout'"
+          :players="players"
+          :group-count="groupCount"
+          :max-groups="maxGroupCount"
+          :can-edit="isAdmin"
+          :locked="scheduleGenerated"
+          :schedule-generated="scheduleGenerated"
+          :show-generate-button="isAdmin"
+          :error="groupAssignmentError || scheduleError"
+          @assign="assignPlayerGroup"
+          @bulk-assign="bulkAssignPlayerGroups"
+          @group-count="changeGroupCount"
+          @generate="generateSchedule"
+        />
 
         <div v-if="isAdmin" class="bg-white border-2 border-border rounded-2xl p-6">
           <h2 class="text-lg font-bold text-foreground mb-3">Invite-Code</h2>
@@ -477,6 +493,7 @@ import TournamentBracket from '@/components/TournamentBracket.vue'
 import MatchDetailsModal from '@/components/MatchDetailsModal.vue'
 import LiveMatchModal from '@/components/LiveMatchModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import GroupAssignmentPanel from '@/components/GroupAssignmentPanel.vue'
 import QRCode from 'qrcode'
 import type { MatchFormat, TournamentMatch } from '@/domain/models'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
@@ -509,6 +526,8 @@ const loginCodes = computed(() => onlineStore.loginCodes)
 
 const isAdmin = computed(() => auth.session?.user?.id === tournament.value?.createdBy)
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
+const maxGroupCount = computed(() => (tournament.value?.mode === 'knockout' ? 1 : 32))
+const scheduleGenerated = computed(() => matches.value.length > 0)
 const qualifierCount = computed(() => (tournament.value?.mode === 'combined' ? 2 : 0))
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
 const tournamentDescription = computed(() => tournament.value?.settings.description ?? '')
@@ -595,11 +614,19 @@ const formatSummaryRows = computed(() => {
 const infoRows = computed(() => {
   if (!tournament.value) return []
   const scopeLabel = tournament.value.scope === 'online' ? 'Online' : 'Lokal'
-  const groups = tournament.value.mode === 'knockout' ? 1 : groupCount.value
+  const groupSizes = Array.from({ length: tournament.value.mode === 'knockout' ? 1 : groupCount.value }, (_, index) => ({
+    label: groupLabel(index),
+    count: players.value.filter((player) => player.groupIndex === index).length
+  }))
+  const groups = tournament.value.mode === 'knockout'
+    ? '1'
+    : `${groupCount.value}${groupSizes.some((group) => group.count > 0)
+      ? ` (${groupSizes.map((group) => `${group.label}:${group.count}`).join(', ')})`
+      : ''}`
   return [
     { label: 'Turnierart', value: scopeLabel },
     { label: 'Modus', value: modeLabel.value },
-    { label: 'Gruppen', value: `${groups}` },
+    { label: 'Gruppen', value: groups },
     { label: 'Teilnehmer', value: `${players.value.length}` },
     {
       label: 'Spielmodus',
@@ -755,6 +782,8 @@ watch(
 )
 
 const groupLabel = (index: number) => String.fromCharCode(65 + index)
+const playerGroupBadge = (groupIndex?: number) =>
+  groupIndex === undefined ? 'Nicht zugeteilt' : `Gruppe ${groupLabel(groupIndex)}`
 
 const groupStandingsList = computed(() => {
   if (!tournament.value || tournament.value.mode === 'knockout') return []
@@ -912,6 +941,7 @@ const bracketPlayerName = (playerId: string) =>
 
 const inviteCode = ref('')
 const scheduleError = ref('')
+const groupAssignmentError = ref('')
 const matchActionError = ref('')
 const newPlayersInput = ref('')
 const generateError = ref('')
@@ -939,10 +969,49 @@ const copyInvite = async () => {
 
 const generateSchedule = async () => {
   scheduleError.value = ''
+  groupAssignmentError.value = ''
   try {
     await onlineStore.generateSchedule()
   } catch (err) {
     scheduleError.value = (err as Error).message ?? 'Spielplan konnte nicht erstellt werden.'
+  }
+}
+
+const changeGroupCount = async (nextGroupCount: number) => {
+  if (!tournamentId.value) return
+  groupAssignmentError.value = ''
+  try {
+    await onlineStore.setTournamentGroupCount(tournamentId.value, nextGroupCount)
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Gruppenzahl konnte nicht geändert werden.'
+  }
+}
+
+const assignPlayerGroup = async (payload: { playerId: string; groupIndex?: number }) => {
+  if (!tournamentId.value) return
+  groupAssignmentError.value = ''
+  try {
+    await onlineStore.setPlayerGroup(tournamentId.value, payload.playerId, payload.groupIndex)
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Spieler konnte nicht verschoben werden.'
+  }
+}
+
+const bulkAssignPlayerGroups = async (payload: {
+  groupCount: number
+  assignments: Array<{ playerId: string; groupIndex: number }>
+}) => {
+  if (!tournamentId.value) return
+  groupAssignmentError.value = ''
+  try {
+    if (payload.groupCount !== groupCount.value) {
+      await onlineStore.setTournamentGroupCount(tournamentId.value, payload.groupCount)
+    }
+    for (const assignment of payload.assignments) {
+      await onlineStore.setPlayerGroup(tournamentId.value, assignment.playerId, assignment.groupIndex)
+    }
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Zuteilung konnte nicht übernommen werden.'
   }
 }
 

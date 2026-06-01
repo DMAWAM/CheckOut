@@ -78,27 +78,45 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'players'" class="bg-white border-2 border-border rounded-2xl p-6">
-        <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
-        <div v-if="playerList.length === 0" class="text-sm text-muted-foreground">Keine Spieler.</div>
-        <div v-else class="space-y-3">
-          <div
-            v-for="player in playerList"
-            :key="player.id"
-            class="flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-3"
-          >
-            <div class="flex items-center gap-3">
-              <span class="font-semibold text-foreground">{{ player.name }}</span>
-              <span
-                v-if="groupCount > 1"
-                class="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full"
-              >
-                Gruppe {{ groupLabel(player.groupIndex ?? 0) }}
-              </span>
+      <div v-else-if="activeTab === 'players'" class="space-y-4">
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
+          <div v-if="playerList.length === 0" class="text-sm text-muted-foreground">Keine Spieler.</div>
+          <div v-else class="space-y-3">
+            <div
+              v-for="player in playerList"
+              :key="player.id"
+              class="flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-3"
+            >
+              <div class="flex items-center gap-3">
+                <span class="font-semibold text-foreground">{{ player.name }}</span>
+                <span
+                  v-if="groupCount > 1"
+                  class="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full"
+                >
+                  {{ playerGroupBadge(player.groupIndex) }}
+                </span>
+              </div>
+              <span class="text-xs text-muted-foreground">ID: {{ player.id.slice(0, 6) }}</span>
             </div>
-            <span class="text-xs text-muted-foreground">ID: {{ player.id.slice(0, 6) }}</span>
           </div>
         </div>
+
+        <GroupAssignmentPanel
+          v-if="tournament && tournament.mode !== 'knockout'"
+          :players="playerList"
+          :group-count="groupCount"
+          :max-groups="maxGroupCount"
+          :can-edit="true"
+          :locked="scheduleLocked"
+          :schedule-generated="scheduleGenerated"
+          :show-generate-button="true"
+          :error="groupAssignmentError"
+          @assign="assignPlayerGroup"
+          @bulk-assign="bulkAssignPlayerGroups"
+          @group-count="changeGroupCount"
+          @generate="regenerateSchedule"
+        />
       </div>
 
       <div v-else-if="activeTab === 'matches'" class="space-y-6">
@@ -377,6 +395,7 @@ import MatchDetailsModal from '@/components/MatchDetailsModal.vue'
 import LiveMatchModal from '@/components/LiveMatchModal.vue'
 import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import GroupAssignmentPanel from '@/components/GroupAssignmentPanel.vue'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { resolveMatchFormat } from '@/domain/tournamentFormat'
 
@@ -406,7 +425,7 @@ const playerList = computed(() =>
     .map((entry) => ({
       id: entry.playerId,
       name: playersStore.players.find((player) => player.id === entry.playerId)?.name ?? entry.playerId,
-      groupIndex: entry.groupIndex ?? 0
+      groupIndex: entry.groupIndex
     }))
 )
 
@@ -414,6 +433,11 @@ const matches = computed(() => tournamentsStore.getAllMatches(tournamentId.value
 const knockoutMatches = computed(() => matches.value.filter((match) => match.phase === 'knockout'))
 const isMatchFinished = (match: TournamentMatch) =>
   match.status === 'finished' || Boolean(tournamentsStore.getResultsByMatch(match.id))
+const scheduleGenerated = computed(() => matches.value.length > 0)
+const scheduleLocked = computed(() =>
+  matches.value.some((match) => match.status !== 'pending') ||
+  tournamentsStore.results.some((entry) => entry.tournamentId === tournamentId.value)
+)
 
 const openMatches = computed(() =>
   matches.value
@@ -545,12 +569,15 @@ watch(
 )
 
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
+const maxGroupCount = computed(() => Math.max(1, Math.floor(playerList.value.length / 2)))
 const groupStandings = computed(() => tournamentsStore.calculateStandings(tournamentId.value, 'round_robin'))
 const finalStandings = computed(() => tournamentsStore.calculateStandings(tournamentId.value, 'all'))
 const leaderboard = computed(() => tournamentsStore.calculateLeaderboards(tournamentId.value))
 const qualifierCount = computed(() => (tournament.value?.mode === 'combined' ? 2 : 0))
 
 const groupLabel = (index: number) => String.fromCharCode(65 + index)
+const playerGroupBadge = (groupIndex?: number) =>
+  groupIndex === undefined ? 'Nicht zugeteilt' : `Gruppe ${groupLabel(groupIndex)}`
 
 const groupStandingsList = computed(() => {
   if (!tournament.value || tournament.value.mode === 'knockout') return []
@@ -801,11 +828,19 @@ const formatSummaryRows = computed(() => {
 const infoRows = computed(() => {
   if (!tournament.value) return []
   const scopeLabel = tournament.value.scope === 'online' ? 'Online' : 'Lokal'
-  const groups = tournament.value.mode === 'knockout' ? 1 : groupCount.value
+  const groupSizes = Array.from({ length: tournament.value.mode === 'knockout' ? 1 : groupCount.value }, (_, index) => ({
+    label: groupLabel(index),
+    count: playerList.value.filter((player) => player.groupIndex === index).length
+  }))
+  const groups = tournament.value.mode === 'knockout'
+    ? '1'
+    : `${groupCount.value}${groupSizes.some((group) => group.count > 0)
+      ? ` (${groupSizes.map((group) => `${group.label}:${group.count}`).join(', ')})`
+      : ''}`
   return [
     { label: 'Turnierart', value: scopeLabel },
     { label: 'Modus', value: modeLabel.value },
-    { label: 'Gruppen', value: `${groups}` },
+    { label: 'Gruppen', value: groups },
     { label: 'Teilnehmer', value: `${playerList.value.length}` },
     {
       label: 'Spielmodus',
@@ -823,6 +858,7 @@ const formatDate = (value?: string) => {
 }
 
 const showDeleteDialog = ref(false)
+const groupAssignmentError = ref('')
 const confirmDelete = () => {
   if (!tournament.value) return
   showDeleteDialog.value = true
@@ -846,6 +882,54 @@ const handleDelete = () => {
   tournamentsStore.deleteTournament(tournament.value.id)
   showDeleteDialog.value = false
   router.push('/tournaments')
+}
+
+const changeGroupCount = (nextGroupCount: number) => {
+  if (!tournament.value) return
+  groupAssignmentError.value = ''
+  try {
+    tournamentsStore.setTournamentGroupCount(tournament.value.id, nextGroupCount)
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Gruppenzahl konnte nicht geändert werden.'
+  }
+}
+
+const assignPlayerGroup = (payload: { playerId: string; groupIndex?: number }) => {
+  if (!tournament.value) return
+  groupAssignmentError.value = ''
+  try {
+    tournamentsStore.setPlayerGroup(tournament.value.id, payload.playerId, payload.groupIndex)
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Spieler konnte nicht verschoben werden.'
+  }
+}
+
+const bulkAssignPlayerGroups = (payload: {
+  groupCount: number
+  assignments: Array<{ playerId: string; groupIndex: number }>
+}) => {
+  if (!tournament.value) return
+  groupAssignmentError.value = ''
+  try {
+    if (payload.groupCount !== groupCount.value) {
+      tournamentsStore.setTournamentGroupCount(tournament.value.id, payload.groupCount)
+    }
+    payload.assignments.forEach((assignment) => {
+      tournamentsStore.setPlayerGroup(tournament.value!.id, assignment.playerId, assignment.groupIndex)
+    })
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Zuteilung konnte nicht übernommen werden.'
+  }
+}
+
+const regenerateSchedule = () => {
+  if (!tournament.value) return
+  groupAssignmentError.value = ''
+  try {
+    tournamentsStore.regenerateMatchesFromGroups(tournament.value.id)
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Spielplan konnte nicht erstellt werden.'
+  }
 }
 
 const canResumeMatch = (match: TournamentMatch) =>

@@ -781,7 +781,7 @@ const koRoundOverrides = ref<RoundOverride[]>([])
 
 
 const maxGroups = computed(() => {
-  if (tournamentScope.value === 'online') return 8
+  if (tournamentScope.value === 'online') return 32
   return Math.max(1, Math.floor(selectedPlayerIds.value.length / 2))
 })
 

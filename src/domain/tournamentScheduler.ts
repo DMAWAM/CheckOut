@@ -32,10 +32,44 @@ export const generateRoundRobinRounds = (playerIds: string[]): RoundRobinRound[]
 }
 
 export const distributePlayersToGroups = (playerIds: string[], groupCount: number) => {
-  const groups: string[][] = Array.from({ length: groupCount }, () => [])
+  const normalizedGroupCount = Math.max(1, Math.floor(groupCount))
+  const groups: string[][] = Array.from({ length: normalizedGroupCount }, () => [])
   playerIds.forEach((playerId, index) => {
-    groups[index % groupCount].push(playerId)
+    groups[index % normalizedGroupCount].push(playerId)
   })
+  return groups
+}
+
+const isValidGroupIndex = (value: number | undefined, groupCount: number): value is number =>
+  Number.isInteger(value) && value >= 0 && value < groupCount
+
+const smallestGroupIndex = (groups: string[][]) =>
+  groups.reduce((smallestIndex, group, index) => (
+    group.length < groups[smallestIndex].length ? index : smallestIndex
+  ), 0)
+
+export const buildGroupsFromAssignments = (
+  playerIds: string[],
+  groupCount: number,
+  assignments: Map<string, number | undefined> = new Map()
+) => {
+  const normalizedGroupCount = Math.max(1, Math.floor(groupCount))
+  const groups: string[][] = Array.from({ length: normalizedGroupCount }, () => [])
+  const unassigned: string[] = []
+
+  playerIds.forEach((playerId) => {
+    const groupIndex = assignments.get(playerId)
+    if (isValidGroupIndex(groupIndex, normalizedGroupCount)) {
+      groups[groupIndex].push(playerId)
+      return
+    }
+    unassigned.push(playerId)
+  })
+
+  unassigned.forEach((playerId) => {
+    groups[smallestGroupIndex(groups)].push(playerId)
+  })
+
   return groups
 }
 
