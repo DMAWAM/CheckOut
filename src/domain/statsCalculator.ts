@@ -61,10 +61,21 @@ export const calculateMatchPlayerStats = (turns: Turn[]): MatchPlayerStats => {
     const isDoubleZone = turn.startedScore <= 40 || turn.startedScore === 50
     return isDoubleZone ? sum + turn.dartsThrown : sum
   }, 0)
+  // Disjoint buckets: every aufnahme is counted in exactly ONE band. A 140
+  // counts only in count140Plus, not also in count100Plus. The labels stay
+  // "100+ / 140+" out of dart-culture habit, but the numbers are now
+  // "100-139", "140-179", etc. so the four counters per player partition
+  // the player's >=60 aufnahmen cleanly.
   const count180 = turns.filter((turn) => !turn.bust && turn.points === 180).length
-  const count140Plus = turns.filter((turn) => !turn.bust && turn.points >= 140).length
-  const count100Plus = turns.filter((turn) => !turn.bust && turn.points >= 100).length
-  const count60Plus = turns.filter((turn) => !turn.bust && turn.points >= 60).length
+  const count140Plus = turns.filter(
+    (turn) => !turn.bust && turn.points >= 140 && turn.points < 180
+  ).length
+  const count100Plus = turns.filter(
+    (turn) => !turn.bust && turn.points >= 100 && turn.points < 140
+  ).length
+  const count60Plus = turns.filter(
+    (turn) => !turn.bust && turn.points >= 60 && turn.points < 100
+  ).length
   const highestScore = turns.reduce((max, turn) => Math.max(max, turn.bust ? 0 : turn.points), 0)
   const highestCheckout = turns.reduce((max, turn) => Math.max(max, turn.checkoutValue ?? 0), 0)
   const dartsByLeg = turns.reduce<Record<string, number>>((acc, turn) => {

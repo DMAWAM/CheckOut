@@ -134,7 +134,7 @@ const categories = computed<Category[]>(() => [
   {
     key: '180',
     title: '180',
-    subtitle: 'Maximums',
+    subtitle: 'Aufnahmen = 180',
     rows: sortDesc((row) => row.count180),
     value: (row: LeaderboardRow) => String(row.count180),
     detail: () => ''
@@ -158,7 +158,7 @@ const categories = computed<Category[]>(() => [
   {
     key: '140-plus',
     title: '140+ Aufnahmen',
-    subtitle: 'Aufnahmen ≥ 140',
+    subtitle: 'Aufnahmen 140 – 179',
     rows: sortDesc((row) => row.count140Plus),
     value: (row: LeaderboardRow) => String(row.count140Plus),
     detail: () => ''
@@ -166,7 +166,7 @@ const categories = computed<Category[]>(() => [
   {
     key: '100-plus',
     title: '100+ Aufnahmen',
-    subtitle: 'Aufnahmen ≥ 100',
+    subtitle: 'Aufnahmen 100 – 139',
     rows: sortDesc((row) => row.count100Plus),
     value: (row: LeaderboardRow) => String(row.count100Plus),
     detail: () => ''
@@ -174,7 +174,7 @@ const categories = computed<Category[]>(() => [
   {
     key: '60-plus',
     title: '60+ Aufnahmen',
-    subtitle: 'Aufnahmen ≥ 60',
+    subtitle: 'Aufnahmen 60 – 99',
     rows: sortDesc((row) => row.count60Plus),
     value: (row: LeaderboardRow) => String(row.count60Plus),
     detail: () => ''
