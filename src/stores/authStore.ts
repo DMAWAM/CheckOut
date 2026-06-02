@@ -153,18 +153,47 @@ export const useAuthStore = defineStore('auth', {
     },
     async logout() {
       // Reset local auth state FIRST so the UI swaps to the login screen
-      // immediately. supabase.auth.signOut() occasionally hangs (stale token,
-      // offline, request stuck) and the previous order left the button click
-      // looking dead until the network call resolved.
+      // immediately if anything below stalls.
       this.session = null
       this.profile = null
       this.loading = false
+
+      // Fire signOut but cap it with a 2s timeout. Without this, an in-flight
+      // refresh / dead network keeps the supabase-js client in a half-logged-
+      // out state and the NEXT signInWithPassword call hangs forever showing
+      // "Lädt". scope:'global' invalidates the refresh token on the server
+      // too which is what we actually want.
       try {
-        // scope: 'local' only clears this tab's tokens — does not invalidate
-        // the refresh token on the server. Fast + works offline.
-        await supabase.auth.signOut({ scope: 'local' })
+        await Promise.race([
+          supabase.auth.signOut({ scope: 'global' }),
+          new Promise<{ error: Error | null }>((resolve) =>
+            setTimeout(() => resolve({ error: new Error('signOut timeout') }), 2000)
+          )
+        ])
       } catch (err) {
-        console.warn('logout signOut failed (state already cleared)', err)
+        console.warn('logout signOut failed (continuing)', err)
+      }
+
+      // Belt-and-braces: nuke every supabase-managed localStorage key so a
+      // subsequent page reload can NOT restore the previous session, and
+      // any leftover refresh token can NOT re-hydrate the client into a
+      // stale state mid-login.
+      if (typeof window !== 'undefined') {
+        try {
+          Object.keys(window.localStorage)
+            .filter((key) => key.startsWith('sb-') || key.startsWith('supabase'))
+            .forEach((key) => window.localStorage.removeItem(key))
+        } catch (err) {
+          console.warn('logout localStorage cleanup failed', err)
+        }
+
+        // Hard navigate to root. This destroys the current JS context, so
+        // the next page load builds a fresh supabase-js client that reads
+        // a clean localStorage and starts in the truly logged-out state.
+        // Without this, the in-memory client's auto-refresh / state still
+        // points at the old session and the next sign-in attempt deadlocks.
+        const base = import.meta.env.BASE_URL ?? '/'
+        window.location.replace(base)
       }
     }
   }
