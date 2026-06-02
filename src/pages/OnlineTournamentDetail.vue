@@ -1155,13 +1155,22 @@ const generatePlayerLogins = async () => {
   try {
     const imported = parsePlayerImport()
     if (imported.names.length === 0) {
-      generateError.value = 'Bitte mindestens einen Namen eingeben.'
+      generateError.value = 'Bitte mindestens einen Namen eingeben. Aus Excel: Gruppen-Label (A, B, …) gefolgt von Tabs und Namen.'
       return
     }
     let createdCount = 0
+    let creationError: Error | null = null
     if (imported.namesToCreate.length > 0) {
-      const codes = await onlineStore.generateLoginCodes(tournamentId.value, imported.namesToCreate)
-      createdCount = codes.length
+      try {
+        const codes = await onlineStore.generateLoginCodes(tournamentId.value, imported.namesToCreate)
+        createdCount = codes.length
+      } catch (err) {
+        creationError = err as Error
+        const partial = (err as any)?.logins as
+          | Array<{ playerId: string; name: string; username: string; code: string }>
+          | undefined
+        if (partial) createdCount = partial.length
+      }
     } else {
       await onlineStore.fetchTournamentDetail(tournamentId.value)
       await onlineStore.fetchLoginCodes(tournamentId.value)
@@ -1184,12 +1193,18 @@ const generatePlayerLogins = async () => {
     }
     await onlineStore.fetchTournamentDetail(tournamentId.value)
     await onlineStore.fetchLoginCodes(tournamentId.value)
+    await buildQrCodes(loginCodes.value)
+    if (creationError) {
+      generateError.value = creationError.message
+      if (createdCount > 0) generateInfo.value = `${createdCount} Logins erstellt, übrige Namen bleiben oben stehen.`
+      return
+    }
+    const existingMatches = imported.names.length - imported.namesToCreate.length
     generateInfo.value =
       `${createdCount} neue Logins erstellt` +
-      `${imported.names.length - imported.namesToCreate.length ? `, ${imported.names.length - imported.namesToCreate.length} bestehende Spieler erkannt` : ''}` +
+      `${existingMatches ? `, ${existingMatches} bestehende Spieler erkannt` : ''}` +
       `${imported.assignments.length ? ' und Gruppen zugeteilt' : ''}.`
     newPlayersInput.value = ''
-    await buildQrCodes(loginCodes.value)
   } catch (err) {
     console.error('generatePlayerLogins failed', err)
     generateError.value = (err as Error)?.message ?? 'Konnte keine Logins erstellen.'
@@ -1263,9 +1278,11 @@ const handleDelete = async () => {
   }
 }
 
+const playerDeleteError = ref('')
 const deletePlayerMessage = computed(() => {
   if (!deletePlayerTarget.value) return ''
-  return `Willst du "${deletePlayerTarget.value.name}" wirklich aus diesem Turnier entfernen? Der Login-Code wird ebenfalls aus der Turnierliste entfernt.`
+  const base = `Willst du "${deletePlayerTarget.value.name}" wirklich aus diesem Turnier entfernen? Der Login-Code wird ebenfalls aus der Turnierliste entfernt.`
+  return playerDeleteError.value ? `${base}\n\nFehler: ${playerDeleteError.value}` : base
 })
 
 const confirmDeleteTournamentPlayer = (playerId: string) => {
@@ -1273,17 +1290,21 @@ const confirmDeleteTournamentPlayer = (playerId: string) => {
   if (!player) return
   generateError.value = ''
   groupAssignmentError.value = ''
+  playerDeleteError.value = ''
   deletePlayerTarget.value = { id: player.id, name: player.name }
 }
 
 const handleDeletePlayer = async () => {
   if (!tournamentId.value || !deletePlayerTarget.value) return
+  playerDeleteError.value = ''
   try {
     await onlineStore.removeTournamentPlayer(tournamentId.value, deletePlayerTarget.value.id)
     deletePlayerTarget.value = null
     await buildQrCodes(loginCodes.value)
   } catch (err) {
-    groupAssignmentError.value = (err as Error).message ?? 'Spieler konnte nicht entfernt werden.'
+    const message = (err as Error).message ?? 'Spieler konnte nicht entfernt werden.'
+    playerDeleteError.value = message
+    groupAssignmentError.value = message
   }
 }
 

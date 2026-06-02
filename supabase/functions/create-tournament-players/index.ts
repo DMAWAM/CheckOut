@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
     }
 
     const logins: Array<{ playerId: string; name: string; username: string; code: string }> = []
+    const skipped: Array<{ name: string; reason: string }> = []
 
     for (const entry of players) {
       const displayName = entry?.name?.trim()
@@ -94,56 +95,98 @@ Deno.serve(async (req) => {
       let username = base
       let email = `${username}@checkout.local`
       let attempt = 0
-      while (attempt < 8) {
+      let existingProfileId: string | null = null
+      while (attempt < 12) {
         const suffix = attempt === 0 ? '' : `-${randomToken(4).toLowerCase()}`
         username = `${base}${suffix}`
         email = `${username}@checkout.local`
         const { data: existing } = await supabaseAdmin
           .from('profiles')
-          .select('id')
+          .select('id, display_name')
           .eq('username', username)
           .maybeSingle()
-        if (!existing) break
+        if (!existing) {
+          existingProfileId = null
+          break
+        }
+        // Reuse a leftover profile from a prior generation only when the display name matches
+        // exactly — that is the same person re-imported after being removed from a tournament.
+        if (attempt === 0 && existing.display_name === displayName) {
+          existingProfileId = existing.id as string
+          break
+        }
         attempt += 1
       }
 
       const code = generateCode()
-      const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: code,
-        email_confirm: true,
-        user_metadata: {
-          username,
-          display_name: displayName
+      let playerId: string | null = existingProfileId
+
+      if (!playerId) {
+        const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: code,
+          email_confirm: true,
+          user_metadata: {
+            username,
+            display_name: displayName
+          }
+        })
+        if (createError || !createdUser?.user) {
+          skipped.push({ name: displayName, reason: createError?.message ?? 'createUser failed' })
+          continue
         }
-      })
-      if (createError || !createdUser?.user) {
-        continue
+        playerId = createdUser.user.id
+      } else {
+        // Existing user: rotate their password to the new login code so the printed code works.
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(playerId, {
+          password: code
+        })
+        if (updateError) {
+          skipped.push({ name: displayName, reason: `updatePassword failed: ${updateError.message}` })
+          continue
+        }
       }
 
-      const playerId = createdUser.user.id
       await supabaseAdmin.from('profiles').upsert({
         id: playerId,
         username,
         display_name: displayName,
         email
       })
-      await supabaseAdmin.from('tournament_players').insert({
-        id: crypto.randomUUID(),
-        tournament_id: tournamentId,
-        player_id: playerId
-      })
-      await supabaseAdmin.from('tournament_login_codes').upsert({
-        id: crypto.randomUUID(),
-        tournament_id: tournamentId,
-        player_id: playerId,
-        code
-      })
+      const { error: playerInsertError } = await supabaseAdmin
+        .from('tournament_players')
+        .upsert(
+          {
+            id: crypto.randomUUID(),
+            tournament_id: tournamentId,
+            player_id: playerId
+          },
+          { onConflict: 'tournament_id,player_id', ignoreDuplicates: true }
+        )
+      if (playerInsertError) {
+        skipped.push({ name: displayName, reason: `tournament_players upsert failed: ${playerInsertError.message}` })
+        continue
+      }
+      const { error: codeUpsertError } = await supabaseAdmin
+        .from('tournament_login_codes')
+        .upsert(
+          {
+            id: crypto.randomUUID(),
+            tournament_id: tournamentId,
+            player_id: playerId,
+            code
+          },
+          { onConflict: 'tournament_id,player_id' }
+        )
+      if (codeUpsertError) {
+        skipped.push({ name: displayName, reason: `login_code upsert failed: ${codeUpsertError.message}` })
+        continue
+      }
 
       logins.push({ playerId, name: displayName, username, code })
     }
 
-    return new Response(JSON.stringify({ logins }), {
+    return new Response(JSON.stringify({ logins, skipped }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {

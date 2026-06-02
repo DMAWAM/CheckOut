@@ -418,8 +418,15 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       }
       const data = await response.json()
       const createdLogins = (data?.logins ?? []) as Array<{ playerId: string; name: string; username: string; code: string }>
+      const skipped = (data?.skipped ?? []) as Array<{ name: string; reason: string }>
       await this.fetchTournamentDetail(tournamentId)
       await this.fetchLoginCodes(tournamentId)
+      if (skipped.length > 0) {
+        const detail = skipped.map((entry) => `${entry.name} (${entry.reason})`).join(', ')
+        const error = new Error(`Folgende Spieler konnten nicht erstellt werden: ${detail}`)
+        ;(error as any).logins = createdLogins
+        throw error
+      }
       return createdLogins
     },
     async generateSchedule() {
@@ -613,13 +620,23 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       if (codeError) {
         throw new Error(codeError.message)
       }
-      const { error } = await supabase
+      const { data: deletedPlayers, error } = await supabase
         .from('tournament_players')
         .delete()
         .eq('tournament_id', tournamentId)
         .eq('player_id', playerId)
+        .select('id')
       if (error) {
         throw new Error(error.message)
+      }
+      if (!deletedPlayers || deletedPlayers.length === 0) {
+        // DELETE silently affected 0 rows — most likely an RLS policy is denying the
+        // operation for this admin. Re-sync from the server so the UI matches reality
+        // instead of pretending the player is gone.
+        await this.fetchTournamentDetail(tournamentId)
+        throw new Error(
+          'Spieler konnte nicht entfernt werden (Datenbank verweigert die Aktion). Bitte Admin-Rechte und RLS-Policies prüfen.'
+        )
       }
       this.players = this.players.filter((player) => player.id !== playerId)
       this.loginCodes = this.loginCodes.filter((entry) => entry.playerId !== playerId)

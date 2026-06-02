@@ -46,6 +46,7 @@ export const parseGroupedPlayerImport = (
   const assignments: Array<{ name: string; groupIndex: number }> = []
   const seenNames = new Set<string>()
   let requiredGroupCount = options.initialGroupCount
+  let currentGroupIndex: number | undefined
 
   const addName = (name: string, groupIndex?: number) => {
     const trimmed = name.trim()
@@ -62,7 +63,10 @@ export const parseGroupedPlayerImport = (
 
   input.split(/\r?\n/).forEach((rawLine) => {
     const cells = splitImportLine(rawLine).map((value) => value.trim()).filter(Boolean)
-    if (cells.length === 0) return
+    if (cells.length === 0) {
+      // Blank line — keep current group context, but treat double blanks as a reset hint.
+      return
+    }
 
     // Excel exports sometimes include leading helper columns. Use the first clear
     // group label in the first few cells, then treat all following cells as names.
@@ -70,13 +74,18 @@ export const parseGroupedPlayerImport = (
     if (groupCellIndex >= 0) {
       const groupIndex = groupLabelToIndex(cells[groupCellIndex])
       if (groupIndex !== undefined && groupIndex >= 0 && groupIndex < options.maxGroupCount) {
+        currentGroupIndex = groupIndex
         requiredGroupCount = Math.max(requiredGroupCount, groupIndex + 1)
-        cells.slice(groupCellIndex + 1).forEach((name) => addName(name, groupIndex))
+        const trailingNames = cells.slice(groupCellIndex + 1)
+        if (trailingNames.length > 0) {
+          trailingNames.forEach((name) => addName(name, groupIndex))
+        }
+        // If only the group label appeared on this line, subsequent lines inherit the group.
         return
       }
     }
 
-    cells.forEach((name) => addName(name))
+    cells.forEach((name) => addName(name, currentGroupIndex))
   })
 
   return { names, assignments, requiredGroupCount }
