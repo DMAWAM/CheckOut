@@ -222,7 +222,7 @@
         </p>
         <div class="grid grid-cols-3 gap-2 mb-3">
           <button
-            v-for="darts in [1, 2, 3]"
+            v-for="darts in plausibleDartCounts"
             :key="`darts-${darts}`"
             class="rounded-xl py-4 font-black text-lg border-2 border-primary bg-primary text-primary-foreground active:scale-95 transition-all"
             @click="confirmCheckout(darts, true)"
@@ -309,6 +309,42 @@ const goAfterMatch = () => {
 const showCheckoutDialog = computed(() => game.pendingCheckout !== null)
 const checkoutRequiresDouble = computed(() => game.pendingCheckout?.requiresDouble ?? false)
 const isInputDisabled = computed(() => game.legWinnerId !== null)
+
+// Which dart counts (1/2/3) can physically have produced this checkout score?
+// We surface only the plausible ones so 81 with one dart or 140 with two darts
+// (both impossible) don't appear as choices.
+const isPlausibleDartCount = (score: number, darts: 1 | 2 | 3, doubleOut: boolean): boolean => {
+  if (score < 1) return false
+  if (darts === 1) {
+    if (doubleOut) {
+      // Must land on a double — D1..D20 or DBull
+      return (score >= 2 && score <= 40 && score % 2 === 0) || score === 50
+    }
+    // Single dart can hit any segment value; this is the achievable set.
+    const achievable = new Set([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      21, 22, 24, 25, 26, 27, 28, 30, 32, 33, 34, 36, 38, 39, 40, 42, 45, 48,
+      50, 51, 54, 57, 60
+    ])
+    return achievable.has(score)
+  }
+  if (darts === 2) {
+    // 2-dart double-out max = T20 + DBull = 110; single-out max = T20 + T20 = 120
+    return doubleOut ? score >= 2 && score <= 110 : score >= 2 && score <= 120
+  }
+  // 3 darts: any standard checkout-able score (the dialog only opens for these)
+  return doubleOut ? score >= 2 && score <= 170 : score >= 1 && score <= 180
+}
+
+const plausibleDartCounts = computed<Array<1 | 2 | 3>>(() => {
+  const points = game.pendingCheckout?.points ?? 0
+  const requiresDouble = checkoutRequiresDouble.value
+  const candidates: Array<1 | 2 | 3> = [1, 2, 3]
+  const plausible = candidates.filter((darts) => isPlausibleDartCount(points, darts, requiresDouble))
+  // Safety net — if nothing matches (shouldn't happen for a real checkout),
+  // fall back to "3 darts" so the user can still resolve the dialog.
+  return plausible.length > 0 ? plausible : [3]
+})
 
 const statsByPlayer = computed(() => {
   const statsMap: Record<string, { average: number; checkoutRate: number }> = {}

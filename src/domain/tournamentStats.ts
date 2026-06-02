@@ -23,6 +23,7 @@ export interface LeaderboardRow {
   checkoutAttempts: number
   checkoutHits: number
   doubleDarts: number
+  count60Plus: number
   count100Plus: number
   count140Plus: number
   count180: number
@@ -161,6 +162,7 @@ export const calculateLeaderboardsFromData = (
       checkoutAttempts: 0,
       checkoutHits: 0,
       doubleDarts: 0,
+      count60Plus: 0,
       count100Plus: 0,
       count140Plus: 0,
       count180: 0,
@@ -183,6 +185,7 @@ export const calculateLeaderboardsFromData = (
           checkoutAttempts: stat.checkoutAttempts ?? 0,
           checkoutHits: stat.checkoutHits ?? 0,
           doubleDarts: stat.doubleDarts ?? 0,
+          count60Plus: stat.count60Plus ?? 0,
           count100Plus: stat.count100Plus ?? 0,
           count140Plus: stat.count140Plus ?? 0,
           count180: stat.count180 ?? 0,
@@ -199,6 +202,7 @@ export const calculateLeaderboardsFromData = (
       current.checkoutAttempts += stat.checkoutAttempts ?? 0
       current.checkoutHits += stat.checkoutHits ?? 0
       current.doubleDarts += stat.doubleDarts ?? 0
+      current.count60Plus += stat.count60Plus ?? 0
       current.count100Plus += stat.count100Plus ?? 0
       current.count140Plus += stat.count140Plus ?? 0
       current.count180 += stat.count180 ?? 0

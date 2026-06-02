@@ -63,6 +63,7 @@ interface LeaderboardRow {
   checkoutRate: number
   checkoutAttempts: number
   checkoutHits: number
+  count60Plus: number
   count100Plus: number
   count140Plus: number
   count180: number
@@ -112,7 +113,7 @@ const categories = computed<Category[]>(() => [
     subtitle: '3-Dart-Schnitt',
     rows: sortDesc((row) => row.average),
     value: (row: LeaderboardRow) => row.average.toFixed(2),
-    detail: (row: LeaderboardRow) => `${row.totalDarts} Darts`
+    detail: () => ''
   },
   {
     key: 'highest-score',
@@ -120,7 +121,7 @@ const categories = computed<Category[]>(() => [
     subtitle: 'Beste Aufnahme',
     rows: sortDesc((row) => row.highestScore),
     value: (row: LeaderboardRow) => row.highestScore ? String(row.highestScore) : '-',
-    detail: (row: LeaderboardRow) => `${row.count100Plus}x 100+`
+    detail: () => ''
   },
   {
     key: 'best-leg',
@@ -136,7 +137,7 @@ const categories = computed<Category[]>(() => [
     subtitle: 'Maximums',
     rows: sortDesc((row) => row.count180),
     value: (row: LeaderboardRow) => String(row.count180),
-    detail: (row: LeaderboardRow) => `${row.count140Plus}x 140+`
+    detail: () => ''
   },
   {
     key: 'checkout',
@@ -152,7 +153,15 @@ const categories = computed<Category[]>(() => [
     subtitle: 'Höchster Checkout',
     rows: sortDesc((row) => row.highestCheckout),
     value: (row: LeaderboardRow) => row.highestCheckout ? String(row.highestCheckout) : '-',
-    detail: (row: LeaderboardRow) => row.highestCheckout ? 'Punkte' : 'Noch kein Finish'
+    detail: () => ''
+  },
+  {
+    key: '140-plus',
+    title: '140+ Aufnahmen',
+    subtitle: 'Aufnahmen ≥ 140',
+    rows: sortDesc((row) => row.count140Plus),
+    value: (row: LeaderboardRow) => String(row.count140Plus),
+    detail: () => ''
   },
   {
     key: '100-plus',
@@ -160,7 +169,15 @@ const categories = computed<Category[]>(() => [
     subtitle: 'Aufnahmen ≥ 100',
     rows: sortDesc((row) => row.count100Plus),
     value: (row: LeaderboardRow) => String(row.count100Plus),
-    detail: (row: LeaderboardRow) => `${row.count140Plus}x 140+ · ${row.count180}x 180`
+    detail: () => ''
+  },
+  {
+    key: '60-plus',
+    title: '60+ Aufnahmen',
+    subtitle: 'Aufnahmen ≥ 60',
+    rows: sortDesc((row) => row.count60Plus),
+    value: (row: LeaderboardRow) => String(row.count60Plus),
+    detail: () => ''
   }
 ])
 </script>

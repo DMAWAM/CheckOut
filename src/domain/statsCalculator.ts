@@ -17,6 +17,7 @@ export interface MatchPlayerStats {
   checkoutAttempts: number
   checkoutHits: number
   doubleDarts: number
+  count60Plus: number
   count100Plus: number
   count140Plus: number
   count180: number
@@ -63,6 +64,7 @@ export const calculateMatchPlayerStats = (turns: Turn[]): MatchPlayerStats => {
   const count180 = turns.filter((turn) => !turn.bust && turn.points === 180).length
   const count140Plus = turns.filter((turn) => !turn.bust && turn.points >= 140).length
   const count100Plus = turns.filter((turn) => !turn.bust && turn.points >= 100).length
+  const count60Plus = turns.filter((turn) => !turn.bust && turn.points >= 60).length
   const highestScore = turns.reduce((max, turn) => Math.max(max, turn.bust ? 0 : turn.points), 0)
   const highestCheckout = turns.reduce((max, turn) => Math.max(max, turn.checkoutValue ?? 0), 0)
   const dartsByLeg = turns.reduce<Record<string, number>>((acc, turn) => {
@@ -81,6 +83,7 @@ export const calculateMatchPlayerStats = (turns: Turn[]): MatchPlayerStats => {
     checkoutAttempts,
     checkoutHits,
     doubleDarts,
+    count60Plus,
     count100Plus,
     count140Plus,
     count180,
