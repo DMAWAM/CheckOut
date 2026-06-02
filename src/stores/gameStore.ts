@@ -138,6 +138,14 @@ export const useGameStore = defineStore('game', {
       this.legWins = { [playerA.id]: 0, [playerB.id]: 0 }
       this.setWins = { [playerA.id]: 0, [playerB.id]: 0 }
       this.setLegWins = { [playerA.id]: 0, [playerB.id]: 0 }
+      // Verbose: helps us diagnose "match did not end after N legs" bugs by
+      // making the exact format used by this match visible in the console.
+      console.info('[gameStore] startNewMatch', {
+        matchId,
+        format: options?.format,
+        doubleOut: this.match.doubleOut,
+        tournamentScope: options?.tournamentScope
+      })
       if (this.match?.status !== 'finished') {
         this.persistLiveState()
       }
@@ -219,9 +227,19 @@ export const useGameStore = defineStore('game', {
 
         this.updateLegCounters(winnerId)
 
-        if (this.isFixedLegsComplete()) {
+        const fixedDone = this.isFixedLegsComplete()
+        const matchWon = !fixedDone && this.isMatchWon(winnerId)
+        console.info('[gameStore] leg ended', {
+          legNumber: this.leg.legNumber,
+          winnerId,
+          legWins: { ...this.legWins },
+          completedLegs: this.completedLegCount(),
+          format: this.match.format,
+          decision: fixedDone ? 'finishFixedLegsMatch' : matchWon ? 'finishMatch' : 'startNextLeg'
+        })
+        if (fixedDone) {
           this.finishFixedLegsMatch()
-        } else if (this.isMatchWon(winnerId)) {
+        } else if (matchWon) {
           this.finishMatch(winnerId)
         } else {
           this.startNextLeg()
@@ -352,6 +370,41 @@ export const useGameStore = defineStore('game', {
     },
     startNextLeg() {
       if (!this.match || !this.leg) return
+      // Safety net: in a fixed_legs match, if for any reason we got here
+      // while the leg target is already met, do NOT spin up another leg.
+      // Finish the match instead. This guards against any path where
+      // applyTurn's branching could fall through to startNextLeg despite
+      // isFixedLegsComplete being true (e.g. snapshot resume with stale
+      // counters, race with reactivity, future refactors).
+      if (this.match.format?.type === 'fixed_legs') {
+        const target = this.match.format.fixedLegs ?? this.match.format.legsToWin ?? 0
+        const completed = this.completedLegCount()
+        if (target > 0 && completed >= target) {
+          console.warn(
+            '[gameStore] startNextLeg called but fixed_legs target was already met — ending match',
+            { completed, target, format: this.match.format }
+          )
+          this.finishFixedLegsMatch()
+          return
+        }
+      }
+      // Same safety net for first_to / best_of: if a player already has
+      // enough leg wins to clinch the match, end it instead of opening
+      // another leg.
+      if (this.match.format && this.match.format.type !== 'fixed_legs' && !this.match.format.useSets) {
+        const target = this.match.format.legsToWin ?? this.match.legsToWin
+        if (target && target > 0) {
+          const reached = this.players.find((player) => (this.legWins[player.id] ?? 0) >= target)
+          if (reached) {
+            console.warn(
+              '[gameStore] startNextLeg called but a player already has enough leg wins — ending match',
+              { winnerId: reached.id, legWins: { ...this.legWins }, target, format: this.match.format }
+            )
+            this.finishMatch(reached.id)
+            return
+          }
+        }
+      }
       const startingScore = this.match.startingScore ?? 501
       const nextLegNumber = this.leg.legNumber + 1
       const nextStarter = this.nextPlayerId(this.leg.startingPlayerId)
