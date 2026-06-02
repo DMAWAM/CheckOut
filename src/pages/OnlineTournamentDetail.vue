@@ -232,13 +232,7 @@
 
         <div class="bg-white border-2 border-border rounded-2xl p-6">
           <div class="flex items-center justify-between mb-4">
-            <div>
-              <h2 class="text-lg font-bold text-foreground">Spielplan</h2>
-              <p class="text-xs text-muted-foreground font-semibold mt-1">
-                Gruppenspiele laufen pro Dartscheibe von oben nach unten. Das nächste Spiel wird erst freigegeben,
-                wenn das vorherige abgeschlossen ist.
-              </p>
-            </div>
+            <h2 class="text-lg font-bold text-foreground">Spielplan</h2>
             <span class="text-xs font-semibold text-muted-foreground">{{ openMatches.length }} offen</span>
           </div>
 
@@ -256,7 +250,12 @@
               <div class="flex items-center justify-between gap-3 mb-3">
                 <div>
                   <h3 class="font-bold text-foreground">{{ section.title }}</h3>
-                  <p class="text-xs text-muted-foreground font-semibold mt-1">{{ section.subtitle }}</p>
+                  <p
+                    v-if="section.subtitle"
+                    class="text-xs text-muted-foreground font-semibold mt-1"
+                  >
+                    {{ section.subtitle }}
+                  </p>
                 </div>
                 <span class="text-xs font-bold rounded-full bg-white border-2 border-border px-3 py-1">
                   {{ section.matches.length }} offen
@@ -731,7 +730,7 @@ const openMatches = computed(() =>
 interface ScheduleSection {
   key: string
   title: string
-  subtitle: string
+  subtitle?: string
   matches: TournamentMatch[]
   isOwnGroup?: boolean
 }
@@ -772,7 +771,6 @@ const scheduleSections = computed<ScheduleSection[]>(() => {
       sections.push({
         key: `own-group-${userGroup}`,
         title: `Deine Gruppe ${groupLabel(userGroup)}`,
-        subtitle: 'Dartscheibe deiner Gruppe · Spiele von oben nach unten',
         matches: sortMatchesChronologically(ownMatches),
         isOwnGroup: true
       })
@@ -786,7 +784,6 @@ const scheduleSections = computed<ScheduleSection[]>(() => {
       sections.push({
         key: `group-${groupIndex}`,
         title: `Gruppe ${groupLabel(groupIndex)}`,
-        subtitle: 'Eigene Dartscheibe · chronologischer Ablauf',
         matches: sortMatchesChronologically(groupMatches)
       })
     })
