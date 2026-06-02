@@ -5,7 +5,7 @@
       <span class="text-xs font-semibold text-muted-foreground">{{ rows.length }} Spieler</span>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       <section
         v-for="category in categories"
         :key="category.key"
@@ -112,6 +112,22 @@ const categories = computed(() => [
     rows: sortDesc((row) => row.checkoutRate),
     value: (row: LeaderboardRow) => `${row.checkoutRate.toFixed(0)}%`,
     detail: (row: LeaderboardRow) => `${row.checkoutHits}/${row.checkoutAttempts}`
+  },
+  {
+    key: 'high-finish',
+    title: 'High Finish',
+    subtitle: 'Höchster Checkout',
+    rows: sortDesc((row) => row.highestCheckout),
+    value: (row: LeaderboardRow) => row.highestCheckout ? String(row.highestCheckout) : '-',
+    detail: (row: LeaderboardRow) => row.highestCheckout ? 'Punkte' : 'Noch kein Finish'
+  },
+  {
+    key: '100-plus',
+    title: '100+ Aufnahmen',
+    subtitle: 'Aufnahmen ≥ 100',
+    rows: sortDesc((row) => row.count100Plus),
+    value: (row: LeaderboardRow) => String(row.count100Plus),
+    detail: (row: LeaderboardRow) => `${row.count140Plus}x 140+ · ${row.count180}x 180`
   }
 ])
 </script>

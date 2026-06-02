@@ -163,9 +163,10 @@
           <div class="flex flex-wrap items-center gap-3">
             <button
               @click="generatePlayerLogins"
-              class="bg-primary text-primary-foreground rounded-xl px-5 py-3 font-bold"
+              :disabled="generatingLogins"
+              class="bg-primary text-primary-foreground rounded-xl px-5 py-3 font-bold disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Codes generieren
+              {{ generatingLogins ? 'Generiere…' : 'Codes generieren' }}
             </button>
             <span v-if="generateInfo" class="text-xs text-muted-foreground">{{ generateInfo }}</span>
           </div>
@@ -1008,6 +1009,7 @@ const matchActionError = ref('')
 const newPlayersInput = ref('')
 const generateError = ref('')
 const generateInfo = ref('')
+const generatingLogins = ref(false)
 const qrMap = ref<Record<string, string>>({})
 const deletePlayerTarget = ref<{ id: string; name: string } | null>(null)
 
@@ -1144,13 +1146,18 @@ const parsePlayerImport = () => {
 const generatePlayerLogins = async () => {
   generateError.value = ''
   generateInfo.value = ''
-  if (!tournamentId.value) return
-  const imported = parsePlayerImport()
-  if (imported.names.length === 0) {
-    generateError.value = 'Bitte mindestens einen Namen eingeben.'
+  if (generatingLogins.value) return
+  if (!tournamentId.value) {
+    generateError.value = 'Turnier-ID fehlt. Seite bitte neu laden.'
     return
   }
+  generatingLogins.value = true
   try {
+    const imported = parsePlayerImport()
+    if (imported.names.length === 0) {
+      generateError.value = 'Bitte mindestens einen Namen eingeben.'
+      return
+    }
     let createdCount = 0
     if (imported.namesToCreate.length > 0) {
       const codes = await onlineStore.generateLoginCodes(tournamentId.value, imported.namesToCreate)
@@ -1184,7 +1191,10 @@ const generatePlayerLogins = async () => {
     newPlayersInput.value = ''
     await buildQrCodes(loginCodes.value)
   } catch (err) {
-    generateError.value = (err as Error).message ?? 'Konnte keine Logins erstellen.'
+    console.error('generatePlayerLogins failed', err)
+    generateError.value = (err as Error)?.message ?? 'Konnte keine Logins erstellen.'
+  } finally {
+    generatingLogins.value = false
   }
 }
 
