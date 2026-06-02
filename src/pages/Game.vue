@@ -1,26 +1,26 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background pb-6">
-    <div v-if="matchFinished" class="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 py-10 sm:py-12">
+  <div class="h-[100dvh] flex flex-col bg-gradient-to-br from-background via-muted/30 to-background overflow-hidden">
+    <div v-if="matchFinished" class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-4 sm:px-6 py-10 sm:py-12">
       <div class="w-20 h-20 sm:w-24 sm:h-24 bg-dart-gold rounded-full flex items-center justify-center mb-6 shadow-xl animate-bounce">
         <i class="pi pi-trophy text-4xl text-white" />
       </div>
       <h1 class="text-4xl sm:text-5xl font-bold mb-3 text-foreground text-center">{{ winnerName ? 'Gewonnen!' : 'Unentschieden' }}</h1>
-      <p class="text-2xl sm:text-3xl text-primary font-bold mb-8 text-center break-words max-w-full">{{ winnerName || matchScoreLabel }}</p>
+      <p class="text-2xl sm:text-3xl text-primary font-bold mb-6 text-center break-words max-w-full">{{ winnerName || matchScoreLabel }}</p>
 
-      <div class="grid gap-4 w-full max-w-3xl mb-10">
+      <div class="grid gap-3 w-full max-w-3xl mb-6">
         <MatchPlayerStatsCard v-for="stat in matchStats" :key="stat.playerId" :stat="stat" />
       </div>
 
       <button
         @click="goAfterMatch"
-        class="bg-primary text-primary-foreground rounded-2xl py-5 px-10 text-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-98"
+        class="bg-primary text-primary-foreground rounded-2xl py-4 px-10 text-lg font-bold shadow-lg hover:shadow-xl transition-all active:scale-98"
       >
         {{ postMatchLabel }}
       </button>
     </div>
 
-    <div v-else>
-      <div class="bg-white border-b-2 border-border px-3 sm:px-4 py-3 flex items-center justify-between gap-2 shadow-sm">
+    <template v-else>
+      <div class="shrink-0 bg-white border-b-2 border-border px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 shadow-sm">
         <button
           @click="router.push('/')"
           class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
@@ -48,7 +48,8 @@
         </button>
       </div>
 
-      <div class="mx-auto w-full sm:max-w-[1200px]">
+      <div class="flex-1 min-h-0 mx-auto w-full sm:max-w-[1200px] flex flex-col">
+      <div class="shrink-0">
       <Scoreboard
         :players="game.players"
         :scores="game.scores"
@@ -60,12 +61,13 @@
         :set-wins="game.setWins"
         :set-leg-wins="game.setLegWins"
       />
+      </div>
 
-      <div class="px-4 mb-3">
+      <div class="px-3 sm:px-4 mb-2 shrink-0">
         <div class="flex gap-2 bg-white rounded-xl p-1 border-2 border-border">
           <button
             @click="setInputMode('total')"
-            class="flex-1 py-2.5 rounded-lg font-bold transition-all"
+            class="flex-1 py-2 rounded-lg font-bold transition-all text-sm"
             :disabled="isInputDisabled"
             :class="inputMode === 'total'
               ? 'bg-primary text-primary-foreground shadow-md'
@@ -75,7 +77,7 @@
           </button>
           <button
             @click="setInputMode('individual')"
-            class="flex-1 py-2.5 rounded-lg font-bold transition-all"
+            class="flex-1 py-2 rounded-lg font-bold transition-all text-sm"
             :disabled="isInputDisabled"
             :class="inputMode === 'individual'
               ? 'bg-primary text-primary-foreground shadow-md'
@@ -86,8 +88,8 @@
         </div>
       </div>
 
-      <div v-if="inputMode === 'individual'">
-        <div class="px-4 mb-3">
+      <div v-if="inputMode === 'individual'" class="flex-1 min-h-0 flex flex-col">
+        <div class="px-3 sm:px-4 mb-2 shrink-0">
           <div class="bg-white border-2 border-border rounded-xl p-4">
             <div class="flex items-center justify-between">
               <div class="flex gap-2">
@@ -118,31 +120,31 @@
           </div>
         </div>
 
-        <div class="px-4 mb-3">
+        <div class="px-3 sm:px-4 mb-2 shrink-0">
           <div class="grid grid-cols-3 gap-2">
             <button
               @click="currentMultiplier = 1"
-              class="py-3 rounded-xl font-bold transition-all border-2"
+              class="py-2 rounded-xl font-bold transition-all border-2 text-sm"
               :class="currentMultiplier === 1
-                ? 'bg-foreground text-white border-foreground shadow-md scale-105'
+                ? 'bg-foreground text-white border-foreground shadow-md'
                 : 'bg-white border-border text-foreground'"
             >
               Single
             </button>
             <button
               @click="currentMultiplier = 2"
-              class="py-3 rounded-xl font-bold transition-all border-2"
+              class="py-2 rounded-xl font-bold transition-all border-2 text-sm"
               :class="currentMultiplier === 2
-                ? 'bg-accent text-accent-foreground border-accent shadow-md scale-105'
+                ? 'bg-accent text-accent-foreground border-accent shadow-md'
                 : 'bg-white border-border text-foreground'"
             >
               Double
             </button>
             <button
               @click="currentMultiplier = 3"
-              class="py-3 rounded-xl font-bold transition-all border-2"
+              class="py-2 rounded-xl font-bold transition-all border-2 text-sm"
               :class="currentMultiplier === 3
-                ? 'bg-dart-gold text-white border-dart-gold shadow-md scale-105'
+                ? 'bg-dart-gold text-white border-dart-gold shadow-md'
                 : 'bg-white border-border text-foreground'"
             >
               Triple
@@ -150,35 +152,35 @@
           </div>
         </div>
 
-        <div class="px-3 sm:px-4 mb-3">
-          <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
+        <div class="flex-1 min-h-0 px-3 sm:px-4 pb-2">
+          <div class="h-full grid grid-cols-5 grid-rows-5 gap-1.5 sm:gap-2">
             <button
               v-for="num in dartNumbers"
               :key="num"
               @click="handleDartScore(num)"
               :disabled="currentThrows.length >= 3 || isInputDisabled"
-              class="bg-white border-2 border-border rounded-xl py-3 sm:py-4 text-base sm:text-lg font-black text-foreground active:scale-95 transition-all hover:shadow-md hover:border-primary disabled:opacity-40"
+              class="bg-white border-2 border-border rounded-xl text-base sm:text-lg font-black text-foreground active:scale-95 transition-transform hover:shadow-md hover:border-primary disabled:opacity-40 leading-none"
             >
               {{ num }}
             </button>
             <button
               @click="handleDartScore(25)"
               :disabled="currentThrows.length >= 3 || isInputDisabled"
-              class="col-span-2 bg-white border-2 border-border rounded-xl py-3 sm:py-4 text-base sm:text-lg font-black text-foreground active:scale-95 transition-all hover:shadow-md hover:border-primary disabled:opacity-40"
+              class="col-span-2 bg-white border-2 border-border rounded-xl text-base sm:text-lg font-black text-foreground active:scale-95 transition-transform hover:shadow-md hover:border-primary disabled:opacity-40 leading-none"
             >
               Bull
             </button>
             <button
               @click="handleDartScore(0)"
               :disabled="currentThrows.length >= 3 || isInputDisabled"
-              class="col-span-2 bg-white border-2 border-border rounded-xl py-3 sm:py-4 text-sm font-black text-muted-foreground active:scale-95 transition-all hover:shadow-md disabled:opacity-40"
+              class="col-span-2 bg-white border-2 border-border rounded-xl text-sm font-black text-muted-foreground active:scale-95 transition-transform hover:shadow-md disabled:opacity-40 leading-none"
             >
               Miss
             </button>
             <button
               @click="clearIndividual"
               :disabled="isInputDisabled"
-              class="bg-destructive text-destructive-foreground rounded-xl py-3 sm:py-4 text-sm font-black active:scale-95 transition-all shadow-md"
+              class="bg-destructive text-destructive-foreground rounded-xl text-sm font-black active:scale-95 transition-transform shadow-md leading-none"
             >
               Clear
             </button>
@@ -186,12 +188,11 @@
         </div>
       </div>
 
-      <div v-else class="px-4 mb-3">
+      <div v-else class="flex-1 min-h-0 px-3 sm:px-4 pb-2">
         <TurnInputKeypad v-model:value="input" :disabled="isInputDisabled" @submit="submitTurn" />
       </div>
-
-      <TurnHistory :turns="recentTurns" :players="game.players" />
     </div>
+    </template>
 
     <div v-if="showBust" class="fixed inset-0 bg-destructive/95 flex items-center justify-center z-50 animate-in fade-in duration-300 px-6" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
       <div class="text-center">
@@ -238,7 +239,6 @@
           Bust – kein Double getroffen
         </button>
       </div>
-    </div>
     </div>
   </div>
 </template>

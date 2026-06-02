@@ -1,15 +1,15 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
-    <div class="mb-8 sm:mb-10 text-center">
-      <h1 class="text-5xl sm:text-6xl font-bold mb-2 text-foreground">CheckOut</h1>
-      <p class="text-base sm:text-xl text-muted-foreground">Vereins-Scoring & Statistiken</p>
+  <div class="min-h-[100dvh] bg-gradient-to-br from-background via-background to-muted flex flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-12">
+    <div class="mb-5 sm:mb-10 text-center">
+      <h1 class="text-4xl sm:text-6xl font-bold mb-1 sm:mb-2 text-foreground">CheckOut</h1>
+      <p class="text-sm sm:text-xl text-muted-foreground">Vereins-Scoring & Statistiken</p>
     </div>
 
-    <div class="w-full max-w-md bg-white border-2 border-border rounded-2xl p-6 sm:p-8 shadow-xl">
-      <div class="flex gap-3 mb-8">
+    <div class="w-full max-w-md bg-white border-2 border-border rounded-2xl p-5 sm:p-8 shadow-xl">
+      <div class="flex gap-2 sm:gap-3 mb-5 sm:mb-8">
         <button
           @click="switchMode('login')"
-          class="flex-1 py-4 rounded-xl font-semibold transition-all"
+          class="flex-1 py-3 sm:py-4 rounded-xl font-semibold transition-all"
           :class="mode === 'login'
             ? 'bg-primary text-primary-foreground shadow-md'
             : 'bg-secondary text-secondary-foreground hover:bg-secondary/70'"
@@ -19,7 +19,7 @@
         </button>
         <button
           @click="switchMode('register')"
-          class="flex-1 py-4 rounded-xl font-semibold transition-all"
+          class="flex-1 py-3 sm:py-4 rounded-xl font-semibold transition-all"
           :class="mode === 'register'
             ? 'bg-primary text-primary-foreground shadow-md'
             : 'bg-secondary text-secondary-foreground hover:bg-secondary/70'"
@@ -29,10 +29,10 @@
         </button>
       </div>
 
-      <form @submit.prevent="submit" class="space-y-5">
+      <form @submit.prevent="submit" class="space-y-3 sm:space-y-5">
         <template v-if="mode === 'register'">
           <div>
-            <label class="block text-sm font-semibold text-foreground mb-2">
+            <label class="block text-sm font-semibold text-foreground mb-1.5">
               <i class="pi pi-user mr-1" />
               Benutzername
             </label>
@@ -40,14 +40,14 @@
               v-model="username"
               type="text"
               placeholder="benutzername"
-              class="w-full bg-white border-2 border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              class="w-full bg-white border-2 border-border rounded-xl px-4 py-2.5 sm:py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               :disabled="loading"
             />
           </div>
         </template>
 
         <div>
-          <label class="block text-sm font-semibold text-foreground mb-2">
+          <label class="block text-sm font-semibold text-foreground mb-1.5">
             <i class="pi pi-envelope mr-1" />
             {{ mode === 'login' ? 'E-Mail oder Benutzername' : 'E-Mail' }}
           </label>
@@ -55,14 +55,14 @@
             v-model="emailField"
             :type="mode === 'login' ? 'text' : 'email'"
             :placeholder="mode === 'login' ? 'email oder benutzername' : 'email@beispiel.de'"
-            class="w-full bg-white border-2 border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+            class="w-full bg-white border-2 border-border rounded-xl px-4 py-2.5 sm:py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
             :disabled="loading"
           />
         </div>
 
         <template v-if="mode === 'register'">
           <div>
-            <label class="block text-sm font-semibold text-foreground mb-2">
+            <label class="block text-sm font-semibold text-foreground mb-1.5">
               <i class="pi pi-id-card mr-1" />
               Anzeigename
             </label>
@@ -70,14 +70,14 @@
               v-model="displayName"
               type="text"
               placeholder="Max Mustermann"
-              class="w-full bg-white border-2 border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              class="w-full bg-white border-2 border-border rounded-xl px-4 py-2.5 sm:py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               :disabled="loading"
             />
           </div>
         </template>
 
         <div>
-          <label class="block text-sm font-semibold text-foreground mb-2">
+          <label class="block text-sm font-semibold text-foreground mb-1.5">
             <i class="pi pi-lock mr-1" />
             Passwort
           </label>
@@ -85,7 +85,7 @@
             v-model="password"
             type="password"
             placeholder="••••••••"
-            class="w-full bg-white border-2 border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+            class="w-full bg-white border-2 border-border rounded-xl px-4 py-2.5 sm:py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
             :disabled="loading"
           />
         </div>
@@ -111,7 +111,7 @@
         <button
           type="submit"
           :disabled="loading"
-          class="w-full bg-primary text-primary-foreground rounded-xl py-4 font-bold text-lg flex items-center justify-center gap-2 active:scale-98 transition-transform disabled:opacity-50 shadow-lg hover:shadow-xl"
+          class="w-full bg-primary text-primary-foreground rounded-xl py-3 sm:py-4 font-bold text-base sm:text-lg flex items-center justify-center gap-2 active:scale-98 transition-transform disabled:opacity-50 shadow-lg hover:shadow-xl"
         >
           <span v-if="loading" class="flex items-center gap-2">
             <span class="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
@@ -124,13 +124,13 @@
         </button>
       </form>
 
-      <div class="mt-6 pt-6 border-t-2 border-border text-center text-sm text-muted-foreground">
+      <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t-2 border-border text-center text-xs sm:text-sm text-muted-foreground">
         <p v-if="mode === 'login'">Noch kein Account? Wechsle zu <strong>Registrieren</strong></p>
         <p v-else>Bereits registriert? Wechsle zu <strong>Login</strong></p>
       </div>
     </div>
 
-    <div class="mt-8 text-center text-sm text-muted-foreground max-w-md bg-muted/50 rounded-xl p-4 border border-border">
+    <div class="hidden sm:block mt-8 text-center text-sm text-muted-foreground max-w-md bg-muted/50 rounded-xl p-4 border border-border">
       <p class="mb-2">
         <strong>Online-Modus:</strong> Melde dich mit deinem Account an
       </p>
