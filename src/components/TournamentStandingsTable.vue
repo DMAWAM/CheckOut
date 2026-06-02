@@ -12,7 +12,9 @@
             <th class="text-left font-semibold py-2 px-2">Rang</th>
             <th class="text-left font-semibold py-2 px-2">Spielername</th>
             <th class="text-center font-semibold py-2 px-2">Spiele</th>
+            <th class="text-center font-semibold py-2 px-2">Punkte</th>
             <th class="text-center font-semibold py-2 px-2">Siege</th>
+            <th class="text-center font-semibold py-2 px-2">Remis</th>
             <th class="text-center font-semibold py-2 px-2">Niederl.</th>
             <th class="text-center font-semibold py-2 px-2">Legs +</th>
             <th class="text-center font-semibold py-2 px-2">Legs -</th>
@@ -58,7 +60,9 @@
               </div>
             </td>
             <td class="py-2 px-2 text-center">{{ row.played }}</td>
+            <td class="py-2 px-2 text-center font-black text-primary">{{ row.points }}</td>
             <td class="py-2 px-2 text-center">{{ row.wins }}</td>
+            <td class="py-2 px-2 text-center">{{ row.draws }}</td>
             <td class="py-2 px-2 text-center">{{ row.losses }}</td>
             <td class="py-2 px-2 text-center">{{ row.legsWon }}</td>
             <td class="py-2 px-2 text-center">{{ row.legsLost }}</td>
@@ -80,7 +84,9 @@ import { computed } from 'vue'
 interface StandingsRow {
   playerId: string
   played: number
+  points: number
   wins: number
+  draws: number
   losses: number
   legsWon: number
   legsLost: number

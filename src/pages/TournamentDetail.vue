@@ -397,7 +397,7 @@ import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import GroupAssignmentPanel from '@/components/GroupAssignmentPanel.vue'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
-import { resolveMatchFormat } from '@/domain/tournamentFormat'
+import { resolveMatchDoubleOut, resolveMatchFormat } from '@/domain/tournamentFormat'
 
 const router = useRouter()
 const route = useRoute()
@@ -768,6 +768,9 @@ const bracketSubtitle = computed(() => {
 
 const formatLabel = (format?: MatchFormat) => {
   if (!format) return 'Standard'
+  if (format.type === 'fixed_legs') {
+    return `${format.fixedLegs ?? format.legsToWin} fixe Legs${format.allowDraw ? ' · Remis möglich' : ''}`
+  }
   if (format.useSets) {
     const setsTarget = format.setsToWin ?? format.legsToWin ?? 1
     const legsPerSet = format.legsPerSet ?? 1
@@ -804,11 +807,19 @@ const formatSummaryRows = computed(() => {
       label: 'Gruppenphase',
       value: formatLabel(byPhase?.roundRobin ?? settings.format)
     })
+    rows.push({
+      label: 'Out Gruppenphase',
+      value: (settings.outByPhase?.roundRobin ?? settings.doubleOut) ? 'Double-Out' : 'Single-Out'
+    })
   }
   if (tournament.value.mode !== 'round_robin') {
     rows.push({
       label: 'K.O.-Phase',
       value: formatLabel(byPhase?.knockout ?? settings.format)
+    })
+    rows.push({
+      label: 'Out K.O. Standard',
+      value: (settings.outByPhase?.knockout ?? settings.doubleOut) ? 'Double-Out' : 'Single-Out'
     })
     const overrides = byPhase?.knockoutRounds ?? {}
     Object.keys(overrides)
@@ -817,6 +828,16 @@ const formatSummaryRows = computed(() => {
       .forEach((round) => {
         const value = formatLabel(overrides[String(round)])
         rows.push({ label: knockoutRoundLabel(round), value })
+      })
+    const outOverrides = settings.outByPhase?.knockoutRounds ?? {}
+    Object.keys(outOverrides)
+      .map((round) => Number(round))
+      .sort((a, b) => a - b)
+      .forEach((round) => {
+        rows.push({
+          label: `Out ${knockoutRoundLabel(round)}`,
+          value: outOverrides[String(round)] ? 'Double-Out' : 'Single-Out'
+        })
       })
   }
   if (rows.length === 0) {
@@ -960,8 +981,9 @@ const startMatch = (matchId: string) => {
 
   tournamentsStore.markMatchInProgress(match.id)
   const matchFormat = resolveMatchFormat(tournament.value, match)
+  const matchDoubleOut = resolveMatchDoubleOut(tournament.value, match)
   gameStore.startNewMatch(playerA.name, playerB.name, {
-    doubleOut: tournament.value.settings.doubleOut,
+    doubleOut: matchDoubleOut,
     format: matchFormat,
     tournamentId: tournament.value.id,
     matchId: match.id,

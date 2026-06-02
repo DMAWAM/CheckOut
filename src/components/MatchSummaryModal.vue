@@ -23,7 +23,7 @@
       </div>
 
       <div class="flex items-center justify-between text-xs text-muted-foreground font-semibold mb-4">
-        <span>Status: beendet</span>
+        <span>{{ resultLabel }}</span>
         <span v-if="match.endedAt">Beendet: {{ formatDate(match.endedAt) }}</span>
       </div>
 
@@ -54,12 +54,21 @@ const formatLabel = computed(() => {
   const startingScore = props.match.startingScore ?? props.match.mode
   if (!props.match.format) return `${startingScore}`
   const format = props.match.format
+  if (format.type === 'fixed_legs') {
+    return `${format.fixedLegs ?? format.legsToWin} fixe Legs`
+  }
   if (format.type === 'best_of') {
     const bestOf = format.bestOf ?? (format.legsToWin ? format.legsToWin * 2 - 1 : undefined)
     return bestOf ? `Best of ${bestOf}` : `${startingScore}`
   }
   const legs = format.legsToWin
   return legs ? `Race to ${legs}` : `${startingScore}`
+})
+
+const resultLabel = computed(() => {
+  if (!props.match) return 'Status: beendet'
+  const winner = props.match.players.find((player) => player.id === props.match?.winnerId)
+  return winner ? `Sieger: ${winner.name}` : 'Resultat: Unentschieden'
 })
 
 const formatDate = (value: string) => {

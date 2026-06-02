@@ -52,8 +52,12 @@
               <div class="text-sm font-bold text-foreground">{{ formatDate(match.endedAt) }}</div>
             </div>
           </div>
-          <div v-if="winnerName" class="mt-4 bg-primary/10 text-primary rounded-xl px-4 py-2 font-semibold">
-            Sieger: {{ winnerName }}
+          <div
+            v-if="resultLabel"
+            class="mt-4 rounded-xl px-4 py-2 font-semibold"
+            :class="winnerName ? 'bg-primary/10 text-primary' : 'bg-dart-gold/10 text-dart-gold'"
+          >
+            {{ resultLabel }}
           </div>
         </div>
 
@@ -83,9 +87,14 @@ const winnerName = computed(() => {
   return match.value.players.find((player) => player.id === match.value?.winnerId)?.name ?? ''
 })
 
+const resultLabel = computed(() => winnerName.value ? `Sieger: ${winnerName.value}` : 'Unentschieden')
+
 const formatLabel = computed(() => {
   const format = match.value?.format
   if (!format) return 'Standard'
+  if (format.type === 'fixed_legs') {
+    return `${format.fixedLegs ?? format.legsToWin} fixe Legs · Remis möglich`
+  }
   if (format.useSets) {
     const sets = format.setsToWin ?? 1
     const legsPerSet = format.legsPerSet ?? format.legsToWin ?? 1

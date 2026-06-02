@@ -4,7 +4,7 @@ export type TournamentPhase = 'round_robin' | 'knockout'
 export type TournamentScope = 'local' | 'online'
 export type MatchStatus = 'in_progress' | 'finished'
 export type TournamentStatus = 'draft' | 'active' | 'finished'
-export type MatchFormatType = 'first_to' | 'best_of'
+export type MatchFormatType = 'first_to' | 'best_of' | 'fixed_legs'
 
 export interface Player {
   id: string
@@ -31,6 +31,8 @@ export interface MatchFormat {
   type: MatchFormatType
   legsToWin: number
   bestOf?: number
+  fixedLegs?: number
+  allowDraw?: boolean
   useSets: boolean
   setsToWin?: number
   legsPerSet?: number
@@ -74,6 +76,11 @@ export interface Tournament {
       knockout?: MatchFormat
       knockoutRounds?: Record<string, MatchFormat>
     }
+    outByPhase?: {
+      roundRobin?: boolean
+      knockout?: boolean
+      knockoutRounds?: Record<string, boolean>
+    }
     description?: string
     groupCount?: number
     startingScore?: number
@@ -103,6 +110,7 @@ export interface TournamentMatchResult {
     playerId: string
     name: string
     isWinner: boolean
+    isDraw?: boolean
     average: number
     checkoutRate: number
     checkoutAttempts: number

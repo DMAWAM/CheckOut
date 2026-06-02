@@ -13,3 +13,16 @@ export const resolveMatchFormat = (tournament: Tournament, match: TournamentMatc
   }
   return baseFormat
 }
+
+export const resolveMatchDoubleOut = (tournament: Tournament, match: TournamentMatch): boolean => {
+  const settings = tournament.settings
+  const byPhase = settings.outByPhase
+  if (match.phase === 'round_robin') {
+    return byPhase?.roundRobin ?? settings.doubleOut
+  }
+  if (match.phase === 'knockout') {
+    const roundOverride = byPhase?.knockoutRounds?.[String(match.round)]
+    return roundOverride ?? byPhase?.knockout ?? settings.doubleOut
+  }
+  return settings.doubleOut
+}

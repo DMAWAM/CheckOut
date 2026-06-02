@@ -4,8 +4,8 @@
       <div class="w-24 h-24 bg-dart-gold rounded-full flex items-center justify-center mb-6 shadow-xl animate-bounce">
         <i class="pi pi-trophy text-4xl text-white" />
       </div>
-      <h1 class="text-5xl font-bold mb-3 text-foreground">Gewonnen!</h1>
-      <p class="text-3xl text-primary font-bold mb-8">{{ winnerName }}</p>
+      <h1 class="text-5xl font-bold mb-3 text-foreground">{{ winnerName ? 'Gewonnen!' : 'Unentschieden' }}</h1>
+      <p class="text-3xl text-primary font-bold mb-8">{{ winnerName || matchScoreLabel }}</p>
 
       <div class="grid gap-4 w-full max-w-3xl mb-10">
         <MatchPlayerStatsCard v-for="stat in matchStats" :key="stat.playerId" :stat="stat" />
@@ -276,12 +276,15 @@ const targetSets = computed(() => matchFormat.value?.setsToWin ?? 1)
 const targetLegsPerSet = computed(() =>
   matchFormat.value?.legsPerSet ?? matchFormat.value?.legsToWin ?? 1
 )
-const targetLegsOnly = computed(() => matchFormat.value?.legsToWin ?? 1)
+const targetLegsOnly = computed(() => matchFormat.value?.fixedLegs ?? matchFormat.value?.legsToWin ?? 1)
 const matchFinished = computed(() => game.match?.status === 'finished')
 const winnerName = computed(() => {
   const winnerId = game.match?.winnerId
   return game.players.find((player) => player.id === winnerId)?.name ?? ''
 })
+const matchScoreLabel = computed(() =>
+  game.players.map((player) => `${player.name} ${game.legWins[player.id] ?? 0}`).join(' · ')
+)
 const postMatchRoute = computed(() => {
   if (!game.match?.tournamentId) return '/'
   if (game.match.tournamentScope === 'online') {
@@ -350,7 +353,8 @@ const matchStats = computed(() => {
     return {
       playerId: player.id,
       name: player.name,
-      isWinner: player.id === game.match?.winnerId,
+      isWinner: Boolean(game.match?.winnerId) && player.id === game.match?.winnerId,
+      isDraw: !game.match?.winnerId,
       legsWon,
       legsLost,
       ...stats

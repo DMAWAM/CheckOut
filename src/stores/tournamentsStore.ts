@@ -144,6 +144,11 @@ export const useTournamentsStore = defineStore('tournaments', {
           knockout?: MatchFormat
           knockoutRounds?: Record<string, MatchFormat>
         }
+        outByPhase?: {
+          roundRobin?: boolean
+          knockout?: boolean
+          knockoutRounds?: Record<string, boolean>
+        }
         groupCount?: number
         description?: string
         startingScore?: number
@@ -360,12 +365,13 @@ export const useTournamentsStore = defineStore('tournaments', {
         return
       }
 
-      const qualifiers: Array<{ playerId: string; wins: number; legsDiff: number; average: number }> = []
+      const qualifiers: Array<{ playerId: string; points: number; wins: number; legsDiff: number; average: number }> = []
       for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
         const groupStandings = this.calculateStandings(tournamentId, 'round_robin', groupIndex)
         groupStandings.slice(0, 2).forEach((row) => {
           qualifiers.push({
             playerId: row.playerId,
+            points: row.points,
             wins: row.wins,
             legsDiff: row.legsDiff,
             average: row.average
@@ -373,7 +379,7 @@ export const useTournamentsStore = defineStore('tournaments', {
         })
       }
       const seeded = qualifiers
-        .sort((a, b) => b.wins - a.wins || b.legsDiff - a.legsDiff || b.average - a.average)
+        .sort((a, b) => b.points - a.points || b.wins - a.wins || b.legsDiff - a.legsDiff || b.average - a.average)
         .map((row) => row.playerId)
       if (seeded.length < 2) return
       this.createKnockoutRound(tournamentId, seeded, 1, 'knockout')

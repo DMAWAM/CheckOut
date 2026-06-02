@@ -141,6 +141,11 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
           knockout?: MatchFormat
           knockoutRounds?: Record<string, MatchFormat>
         }
+        outByPhase?: {
+          roundRobin?: boolean
+          knockout?: boolean
+          knockoutRounds?: Record<string, boolean>
+        }
         groupCount?: number
         description?: string
         startingScore?: number
@@ -585,7 +590,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       const winnerId = result.stats.find((stat) => stat.isWinner)?.playerId
       await supabase
         .from('tournament_matches')
-        .update({ status: 'finished', ended_at: new Date().toISOString(), winner_id: winnerId })
+        .update({ status: 'finished', ended_at: new Date().toISOString(), winner_id: winnerId ?? null })
         .eq('id', matchId)
       await supabase.from('tournament_match_results').upsert(
         {
@@ -619,7 +624,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       if (rrMatches.some((match) => match.status !== 'finished')) return
 
       const groupCount = this.currentTournament.settings.groupCount ?? 1
-      const qualifiers: Array<{ playerId: string; wins: number; legsDiff: number; average: number }> = []
+      const qualifiers: Array<{ playerId: string; points: number; wins: number; legsDiff: number; average: number }> = []
       for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
         const playerIds = this.players
           .filter((player) => (player.groupIndex ?? 0) === groupIndex)
@@ -634,6 +639,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         standings.slice(0, 2).forEach((row) => {
           qualifiers.push({
             playerId: row.playerId,
+            points: row.points,
             wins: row.wins,
             legsDiff: row.legsDiff,
             average: row.average
@@ -641,7 +647,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         })
       }
       const seeded = qualifiers
-        .sort((a, b) => b.wins - a.wins || b.legsDiff - a.legsDiff || b.average - a.average)
+        .sort((a, b) => b.points - a.points || b.wins - a.wins || b.legsDiff - a.legsDiff || b.average - a.average)
         .map((row) => row.playerId)
       if (seeded.length < 2) return
 

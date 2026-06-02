@@ -3,7 +3,9 @@ import type { TournamentMatch, TournamentMatchResult, TournamentPhase } from './
 export interface StandingsRow {
   playerId: string
   played: number
+  points: number
   wins: number
+  draws: number
   losses: number
   legsWon: number
   legsLost: number
@@ -41,7 +43,9 @@ export const calculateStandingsFromData = (params: {
     string,
     {
       wins: number
+      draws: number
       losses: number
+      points: number
       played: number
       legsWon: number
       legsLost: number
@@ -54,7 +58,9 @@ export const calculateStandingsFromData = (params: {
   params.playerIds.forEach((playerId) => {
     stats[playerId] = {
       wins: 0,
+      draws: 0,
       losses: 0,
+      points: 0,
       played: 0,
       legsWon: 0,
       legsLost: 0,
@@ -77,15 +83,23 @@ export const calculateStandingsFromData = (params: {
     const result = params.results.find((entry) => entry.matchId === match.id)
     if (!result) return
     const winnerId = match.winnerId
-    if (!winnerId) return
-    const loserId = winnerId === match.playerAId ? match.playerBId : match.playerAId
-    if (stats[winnerId]) {
+    const participantIds = [match.playerAId, match.playerBId].filter((playerId) => stats[playerId])
+    participantIds.forEach((playerId) => {
+      stats[playerId].played += 1
+    })
+
+    if (winnerId && stats[winnerId]) {
+      const loserId = winnerId === match.playerAId ? match.playerBId : match.playerAId
       stats[winnerId].wins += 1
-      stats[winnerId].played += 1
-    }
-    if (stats[loserId]) {
-      stats[loserId].losses += 1
-      stats[loserId].played += 1
+      stats[winnerId].points += 3
+      if (stats[loserId]) {
+        stats[loserId].losses += 1
+      }
+    } else {
+      participantIds.forEach((playerId) => {
+        stats[playerId].draws += 1
+        stats[playerId].points += 1
+      })
     }
 
     result.stats.forEach((stat) => {
@@ -108,7 +122,9 @@ export const calculateStandingsFromData = (params: {
       const average = row.totalDarts === 0 ? 0 : (row.totalPoints / row.totalDarts) * 3
       return {
         playerId,
+        points: row.points,
         wins: row.wins,
+        draws: row.draws,
         losses: row.losses,
         played: row.played,
         legsWon: row.legsWon,
@@ -119,7 +135,13 @@ export const calculateStandingsFromData = (params: {
         highestCheckout: row.highestCheckout
       }
     })
-    .sort((a, b) => b.wins - a.wins || b.legsDiff - a.legsDiff || b.average - a.average)
+    .sort((a, b) =>
+      b.points - a.points ||
+      b.wins - a.wins ||
+      b.legsDiff - a.legsDiff ||
+      b.legsWon - a.legsWon ||
+      b.average - a.average
+    )
 }
 
 export const calculateLeaderboardsFromData = (results: TournamentMatchResult[]): LeaderboardRow[] => {

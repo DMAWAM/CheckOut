@@ -5,6 +5,7 @@ export interface MatchPlayerSummary extends MatchPlayerStats {
   playerId: string
   name: string
   isWinner: boolean
+  isDraw?: boolean
   legsWon: number
   legsLost: number
 }

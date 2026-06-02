@@ -120,7 +120,7 @@ const formatCheckout = (playerId: string) => {
 const usesSets = computed(() => props.matchFormat?.useSets ?? false)
 const targetSets = computed(() => props.matchFormat?.setsToWin ?? 1)
 const targetLegsPerSet = computed(() => props.matchFormat?.legsPerSet ?? props.matchFormat?.legsToWin ?? 1)
-const targetLegsOnly = computed(() => props.matchFormat?.legsToWin ?? 1)
+const targetLegsOnly = computed(() => props.matchFormat?.fixedLegs ?? props.matchFormat?.legsToWin ?? 1)
 
 const legWins = computed(() => props.legWins ?? {})
 const setWins = computed(() => props.setWins ?? {})

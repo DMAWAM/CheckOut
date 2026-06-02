@@ -195,11 +195,10 @@ export const useGameStore = defineStore('game', {
 
         this.updateLegCounters(winnerId)
 
-        if (this.isMatchWon(winnerId)) {
-          this.match.status = 'finished'
-          this.match.winnerId = winnerId
-          this.saveMatchSummary()
-          this.clearLiveState()
+        if (this.isFixedLegsComplete()) {
+          this.finishFixedLegsMatch()
+        } else if (this.isMatchWon(winnerId)) {
+          this.finishMatch(winnerId)
         } else {
           this.startNextLeg()
         }
@@ -226,12 +225,36 @@ export const useGameStore = defineStore('game', {
     },
     isMatchWon(winnerId: string) {
       if (!this.match) return false
+      if (this.match.format?.type === 'fixed_legs') return false
       if (this.match.format?.useSets) {
         const targetSets = this.match.format.setsToWin ?? 1
         return (this.setWins[winnerId] ?? 0) >= targetSets
       }
       const targetLegs = this.match.format?.legsToWin ?? this.match.legsToWin ?? 1
       return (this.legWins[winnerId] ?? 0) >= targetLegs
+    },
+    completedLegCount() {
+      return this.legs.filter((leg) => leg.winnerId).length
+    },
+    isFixedLegsComplete() {
+      if (!this.match || this.match.format?.type !== 'fixed_legs') return false
+      const targetLegs = this.match.format.fixedLegs ?? this.match.format.legsToWin
+      return this.completedLegCount() >= targetLegs
+    },
+    finishFixedLegsMatch() {
+      if (!this.match) return
+      const [playerA, playerB] = this.players
+      const legsA = this.legWins[playerA.id] ?? 0
+      const legsB = this.legWins[playerB.id] ?? 0
+      const winnerId = legsA === legsB ? undefined : legsA > legsB ? playerA.id : playerB.id
+      this.finishMatch(winnerId)
+    },
+    finishMatch(winnerId?: string) {
+      if (!this.match) return
+      this.match.status = 'finished'
+      this.match.winnerId = winnerId
+      this.saveMatchSummary()
+      this.clearLiveState()
     },
     resetCounter() {
       const counters: Record<string, number> = {}
@@ -354,7 +377,8 @@ export const useGameStore = defineStore('game', {
           return {
             playerId: player.id,
             name: player.name,
-            isWinner: player.id === this.match?.winnerId,
+            isWinner: Boolean(this.match?.winnerId) && player.id === this.match?.winnerId,
+            isDraw: !this.match?.winnerId,
             legsWon,
             legsLost,
             ...stats

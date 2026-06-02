@@ -1,18 +1,26 @@
 <template>
   <div
     class="bg-white border-2 rounded-2xl p-6 shadow-sm"
-    :class="stat.isWinner ? 'border-primary/70 shadow-lg shadow-primary/20' : 'border-border'"
+    :class="stat.isWinner
+      ? 'border-primary/70 shadow-lg shadow-primary/20'
+      : stat.isDraw
+        ? 'border-dart-gold/60 bg-dart-gold/5'
+        : 'border-border'"
   >
     <div class="flex items-center justify-between mb-4">
-      <div class="text-lg font-bold" :class="stat.isWinner ? 'text-primary' : 'text-foreground'">
+      <div
+        class="text-lg font-bold"
+        :class="stat.isWinner ? 'text-primary' : stat.isDraw ? 'text-dart-gold' : 'text-foreground'"
+      >
         {{ stat.name }}
       </div>
       <div
         class="text-sm font-semibold flex items-center gap-1"
-        :class="stat.isWinner ? 'text-primary' : 'text-muted-foreground'"
+        :class="stat.isWinner ? 'text-primary' : stat.isDraw ? 'text-dart-gold' : 'text-muted-foreground'"
       >
         <i v-if="stat.isWinner" class="pi pi-trophy text-dart-gold" />
-        {{ stat.isWinner ? 'Sieger' : 'Spieler' }}
+        <i v-else-if="stat.isDraw" class="pi pi-equals" />
+        {{ stat.isWinner ? 'Sieger' : stat.isDraw ? 'Remis' : 'Spieler' }}
       </div>
     </div>
 

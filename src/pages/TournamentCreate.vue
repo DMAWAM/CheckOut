@@ -117,6 +117,23 @@
             </p>
           </div>
 
+          <button
+            type="button"
+            class="w-full rounded-2xl border-2 border-primary/30 bg-primary/10 px-4 py-4 text-left hover:border-primary hover:bg-primary/15 transition-all"
+            @click="applyGummiMastersPreset"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="font-black text-foreground">Gümmi-Masters-Regeln übernehmen</div>
+                <div class="text-xs text-muted-foreground mt-1">
+                  Gruppenphase: 2 fixe Legs mit Remis, 3/1/0 Punkte, Top 2 je Gruppe, Single-Out in der Gruppe,
+                  Double-Out ab Viertelfinal.
+                </div>
+              </div>
+              <i class="pi pi-bolt text-primary text-xl" />
+            </div>
+          </button>
+
           <div v-if="tournamentType !== 'knockout'" class="pt-2">
             <label class="block text-sm font-semibold text-foreground mb-2">Gruppenphase</label>
             <div class="flex items-center justify-between bg-muted/30 border-2 border-border rounded-xl px-4 py-3">
@@ -182,7 +199,7 @@
               <span class="text-xs text-muted-foreground">Round Robin</span>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-3 gap-3">
               <button
                 @click="setFormatMode(groupFormat, 'first_to')"
                 class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
@@ -201,15 +218,24 @@
               >
                 Best-of
               </button>
+              <button
+                @click="setFormatMode(groupFormat, 'fixed_legs')"
+                class="px-4 py-2.5 rounded-xl font-semibold transition-all border-2 text-sm"
+                :class="groupFormat.mode === 'fixed_legs'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-secondary-foreground border-border'"
+              >
+                Fixe Legs
+              </button>
             </div>
 
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-bold text-foreground">
-                  {{ groupFormat.mode === 'first_to' ? 'First-to' : 'Best-of' }} {{ unitLabelFor(groupFormat) }}
+                  {{ formatModeLabel(groupFormat) }} {{ unitLabelFor(groupFormat) }}
                 </div>
                 <div class="text-xs text-muted-foreground font-semibold">
-                  {{ groupFormat.mode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
+                  {{ groupFormat.mode === 'fixed_legs' ? 'Anzahl gespielte Legs, Remis möglich' : groupFormat.mode === 'first_to' ? 'Ziel' : 'Gesamtanzahl' }}
                 </div>
               </div>
               <div class="flex items-center gap-2">
@@ -220,7 +246,7 @@
                   -
                 </button>
                 <div class="w-14 text-center text-2xl font-black text-foreground">
-                  {{ groupFormat.mode === 'first_to' ? groupFormat.target : groupFormat.bestOf }}
+                  {{ groupFormat.mode === 'best_of' ? groupFormat.bestOf : groupFormat.target }}
                 </div>
                 <button
                   class="w-9 h-9 rounded-xl border-2 border-border bg-white font-bold"
@@ -232,6 +258,23 @@
             </div>
 
             <div class="flex items-center justify-between pt-1">
+              <div>
+                <div class="font-bold text-foreground">Out-Regel Gruppenphase</div>
+                <div class="text-xs text-muted-foreground font-semibold">{{ groupDoubleOut ? 'Double-Out' : 'Single-Out' }}</div>
+              </div>
+              <button
+                @click="groupDoubleOut = !groupDoubleOut"
+                class="w-14 h-8 rounded-full transition-colors relative"
+                :class="groupDoubleOut ? 'bg-primary' : 'bg-secondary'"
+              >
+                <div
+                  class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+                  :class="groupDoubleOut ? 'translate-x-7' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+
+            <div v-if="groupFormat.mode !== 'fixed_legs'" class="flex items-center justify-between pt-1">
               <div>
                 <div class="font-bold text-foreground">Sätze spielen</div>
                 <div class="text-xs text-muted-foreground font-semibold">Legs in Sets gruppieren</div>
@@ -280,6 +323,23 @@
             <div class="flex items-center justify-between">
               <div class="font-bold text-foreground">K.O.-Phase (Standard)</div>
               <span class="text-xs text-muted-foreground">Gilt für alle Runden</span>
+            </div>
+
+            <div class="flex items-center justify-between rounded-xl bg-white border-2 border-border px-4 py-3">
+              <div>
+                <div class="font-bold text-foreground">Out-Regel K.O. Standard</div>
+                <div class="text-xs text-muted-foreground font-semibold">{{ knockoutDoubleOut ? 'Double-Out' : 'Single-Out' }}</div>
+              </div>
+              <button
+                @click="knockoutDoubleOut = !knockoutDoubleOut"
+                class="w-14 h-8 rounded-full transition-colors relative"
+                :class="knockoutDoubleOut ? 'bg-primary' : 'bg-secondary'"
+              >
+                <div
+                  class="w-6 h-6 bg-white rounded-full absolute top-1 transition-transform"
+                  :class="knockoutDoubleOut ? 'translate-x-7' : 'translate-x-1'"
+                />
+              </button>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -395,6 +455,37 @@
                     :class="round.enabled ? 'translate-x-7' : 'translate-x-1'"
                   />
                 </button>
+              </div>
+
+              <div class="flex items-center justify-between mb-3 rounded-xl bg-muted/30 border-2 border-border px-3 py-2">
+                <div>
+                  <div class="text-sm font-bold text-foreground">Out-Regel überschreiben</div>
+                  <div class="text-xs text-muted-foreground">
+                    {{ round.outEnabled ? (round.doubleOut ? 'Double-Out' : 'Single-Out') : 'Standard-K.O.' }}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    @click="round.outEnabled = !round.outEnabled"
+                    class="w-12 h-7 rounded-full transition-colors relative"
+                    :class="round.outEnabled ? 'bg-primary' : 'bg-secondary'"
+                  >
+                    <div
+                      class="w-5 h-5 bg-white rounded-full absolute top-1 transition-transform"
+                      :class="round.outEnabled ? 'translate-x-6' : 'translate-x-1'"
+                    />
+                  </button>
+                  <button
+                    v-if="round.outEnabled"
+                    @click="round.doubleOut = !round.doubleOut"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all"
+                    :class="round.doubleOut
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-white text-foreground border-border'"
+                  >
+                    {{ round.doubleOut ? 'Double' : 'Single' }}
+                  </button>
+                </div>
               </div>
 
               <div v-if="round.enabled" class="space-y-3">
@@ -741,7 +832,7 @@ const startingScore = ref<301 | 501 | 701>(501)
 const usePhaseFormats = ref(false)
 
 type FormatState = {
-  mode: 'first_to' | 'best_of'
+  mode: 'first_to' | 'best_of' | 'fixed_legs'
   target: number
   bestOf: number
   useSets: boolean
@@ -759,8 +850,19 @@ const createFormatState = (): FormatState => ({
 const baseFormat = reactive(createFormatState())
 const groupFormat = reactive(createFormatState())
 const knockoutFormat = reactive(createFormatState())
+const groupDoubleOut = ref(true)
+const knockoutDoubleOut = ref(true)
+const gummiMastersPresetActive = ref(false)
 
-const unitLabelFor = (state: FormatState) => (state.useSets ? 'Sätze' : 'Legs')
+const unitLabelFor = (state: FormatState) => {
+  if (state.mode === 'fixed_legs') return 'Legs'
+  return state.useSets ? 'Sätze' : 'Legs'
+}
+
+const formatModeLabel = (state: FormatState) => {
+  if (state.mode === 'fixed_legs') return 'Fixe'
+  return state.mode === 'first_to' ? 'First-to' : 'Best-of'
+}
 
 const applyFormatState = (target: FormatState, source: FormatState) => {
   target.mode = source.mode
@@ -774,6 +876,8 @@ type RoundOverride = {
   round: number
   label: string
   enabled: boolean
+  outEnabled: boolean
+  doubleOut: boolean
   state: FormatState
 }
 
@@ -874,19 +978,30 @@ const knockoutRoundLabels = computed(() => {
   })
 })
 
+const isDoubleOutFromQuarterfinal = (label: string) =>
+  label === 'Top 8' || label === 'Halbfinale' || label === 'Finale'
+
 const syncRoundOverrides = () => {
   const labels = knockoutRoundLabels.value
   const existing = new Map<number, RoundOverride>(koRoundOverrides.value.map((entry) => [entry.round, entry]))
   koRoundOverrides.value = labels.map((label, index) => {
     const round = index + 1
     const prev = existing.get(round)
+    const gummiDoubleOut = gummiMastersPresetActive.value && isDoubleOutFromQuarterfinal(label)
     if (prev) {
-      return { ...prev, label }
+      return {
+        ...prev,
+        label,
+        outEnabled: gummiDoubleOut || prev.outEnabled,
+        doubleOut: gummiDoubleOut ? true : prev.doubleOut
+      }
     }
     return {
       round,
       label,
       enabled: false,
+      outEnabled: gummiDoubleOut,
+      doubleOut: gummiDoubleOut || knockoutDoubleOut.value,
       state: { ...createFormatState(), ...knockoutFormat }
     }
   })
@@ -906,10 +1021,14 @@ watch(
 
 const setFormatMode = (state: FormatState, mode: FormatState['mode']) => {
   state.mode = mode
+  if (mode === 'fixed_legs') {
+    state.useSets = false
+    state.target = Math.max(1, state.target)
+  }
 }
 
 const decrementFormat = (state: FormatState) => {
-  if (state.mode === 'first_to') {
+  if (state.mode === 'first_to' || state.mode === 'fixed_legs') {
     state.target = Math.max(1, state.target - 1)
   } else {
     state.bestOf = Math.max(3, state.bestOf - 2)
@@ -917,7 +1036,7 @@ const decrementFormat = (state: FormatState) => {
 }
 
 const incrementFormat = (state: FormatState) => {
-  if (state.mode === 'first_to') {
+  if (state.mode === 'first_to' || state.mode === 'fixed_legs') {
     state.target = Math.min(9, state.target + 1)
   } else {
     state.bestOf = Math.min(15, state.bestOf + 2)
@@ -933,6 +1052,16 @@ const incrementLegsPerSet = (state: FormatState) => {
 }
 
 const buildFormat = (state: FormatState): MatchFormat => {
+  if (state.mode === 'fixed_legs') {
+    return {
+      type: 'fixed_legs',
+      legsToWin: state.target,
+      fixedLegs: state.target,
+      allowDraw: true,
+      useSets: false
+    }
+  }
+
   const target = state.mode === 'first_to'
     ? state.target
     : Math.ceil(state.bestOf / 2)
@@ -944,6 +1073,31 @@ const buildFormat = (state: FormatState): MatchFormat => {
     useSets: state.useSets,
     setsToWin: state.useSets ? target : undefined,
     legsPerSet: state.useSets ? state.legsPerSet : undefined
+  }
+}
+
+const applyGummiMastersPreset = () => {
+  gummiMastersPresetActive.value = true
+  tournamentScope.value = 'online'
+  tournamentType.value = 'combined'
+  startingScore.value = 501
+  doubleOut.value = false
+  usePhaseFormats.value = true
+  groupDoubleOut.value = false
+  knockoutDoubleOut.value = false
+  setFormatMode(groupFormat, 'fixed_legs')
+  groupFormat.target = 2
+  setFormatMode(knockoutFormat, 'first_to')
+  knockoutFormat.target = 3
+  syncRoundOverrides()
+  koRoundOverrides.value = koRoundOverrides.value.map((round) => ({
+    ...round,
+    outEnabled: isDoubleOutFromQuarterfinal(round.label),
+    doubleOut: isDoubleOutFromQuarterfinal(round.label)
+  }))
+  if (!tournamentDescription.value.trim()) {
+    tournamentDescription.value =
+      'Gruppenphase: Jeder gegen jeden, 2 fixe Legs pro Spiel. Sieg = 3 Punkte, Remis = 1 Punkt, Niederlage = 0 Punkte. Die besten zwei jeder Gruppe qualifizieren sich für die K.O.-Phase.'
   }
 }
 
@@ -968,6 +1122,22 @@ const createTournament = async () => {
     formatByPhase && Object.keys(formatByPhase.knockoutRounds ?? {}).length === 0
       ? { ...formatByPhase, knockoutRounds: undefined }
       : formatByPhase
+  const outByPhase = usePhaseFormats.value
+    ? {
+      roundRobin: tournamentType.value !== 'knockout' ? groupDoubleOut.value : undefined,
+      knockout: tournamentType.value !== 'round_robin' ? knockoutDoubleOut.value : undefined,
+      knockoutRounds: koRoundOverrides.value.reduce<Record<string, boolean>>((acc, entry) => {
+        if (entry.outEnabled) {
+          acc[String(entry.round)] = entry.doubleOut
+        }
+        return acc
+      }, {})
+    }
+    : undefined
+  const normalizedOutByPhase =
+    outByPhase && Object.keys(outByPhase.knockoutRounds ?? {}).length === 0
+      ? { ...outByPhase, knockoutRounds: undefined }
+      : outByPhase
   if (tournamentScope.value === 'online') {
     try {
       const id = await onlineTournamentsStore.createTournament({
@@ -979,6 +1149,7 @@ const createTournament = async () => {
           doubleOut: doubleOut.value,
           format: baseFormatValue,
           formatByPhase: normalizedFormatByPhase,
+          outByPhase: normalizedOutByPhase,
           description: descriptionValue,
           groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
           startingScore: startingScore.value
@@ -1000,6 +1171,7 @@ const createTournament = async () => {
       doubleOut: doubleOut.value,
       format: baseFormatValue,
       formatByPhase: normalizedFormatByPhase,
+      outByPhase: normalizedOutByPhase,
       description: descriptionValue,
       groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
       startingScore: startingScore.value
