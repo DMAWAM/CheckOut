@@ -605,6 +605,19 @@ const gameStore = useGameStore()
 type TabKey = 'info' | 'players' | 'matches' | 'groups' | 'knockout' | 'stats'
 const activeTab = ref<TabKey>('matches')
 
+const tournamentId = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id))
+const tournament = computed(() => onlineStore.currentTournament)
+const players = computed(() => onlineStore.players)
+const matches = computed(() => onlineStore.matches)
+const results = computed(() => onlineStore.results)
+const knockoutMatches = computed(() => matches.value.filter((match) => match.phase === 'knockout'))
+const loginCodes = computed(() => onlineStore.loginCodes)
+
+// IMPORTANT: tabs / tabLabels / activeTab-watcher must be declared AFTER
+// `tournament`, because the computed body reads tournament.value. Declaring
+// them above would throw a TDZ ReferenceError when the immediate watcher
+// fires at setup time — that's what blanked the OnlineTournamentDetail
+// page on combined tournaments.
 const tabs = computed<TabKey[]>(() => {
   const mode = tournament.value?.mode
   const base: TabKey[] = ['info', 'players', 'matches']
@@ -627,9 +640,6 @@ const tabLabels = computed<Record<TabKey, string>>(() => ({
   stats: 'Statistiken'
 }))
 
-// If activeTab points at a tab not available in this mode (e.g. user comes
-// from a combined tournament back to a round_robin one, or vice versa),
-// fall back to "matches" so we never show a blank tab body.
 watch(
   [tabs, activeTab],
   ([available, current]) => {
@@ -639,14 +649,6 @@ watch(
   },
   { immediate: true }
 )
-
-const tournamentId = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id))
-const tournament = computed(() => onlineStore.currentTournament)
-const players = computed(() => onlineStore.players)
-const matches = computed(() => onlineStore.matches)
-const results = computed(() => onlineStore.results)
-const knockoutMatches = computed(() => matches.value.filter((match) => match.phase === 'knockout'))
-const loginCodes = computed(() => onlineStore.loginCodes)
 
 const isAdmin = computed(() => auth.session?.user?.id === tournament.value?.createdBy)
 const isPlayerInTournament = computed(() => {
