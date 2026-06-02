@@ -51,8 +51,18 @@ const emit = defineEmits<{ (e: 'update:value', value: string): void; (e: 'submit
 
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
+// iOS Safari occasionally fires both the touch-derived click and a
+// synthetic mouse click ~50-100ms apart for the same tap. We ignore any
+// repeat input that lands within this cooldown so "44" doesn't become
+// "444" after a real double-tap.
+const INPUT_COOLDOWN_MS = 80
+let lastInputAt = 0
+
 const appendDigit = (digit: number) => {
   if (props.disabled) return
+  const now = performance.now()
+  if (now - lastInputAt < INPUT_COOLDOWN_MS) return
+  lastInputAt = now
   if (props.value.length >= 3) return
   const nextValue = props.value === '0' ? String(digit) : `${props.value}${digit}`
   emit('update:value', nextValue)
@@ -60,6 +70,9 @@ const appendDigit = (digit: number) => {
 
 const clear = () => {
   if (props.disabled) return
+  const now = performance.now()
+  if (now - lastInputAt < INPUT_COOLDOWN_MS) return
+  lastInputAt = now
   emit('update:value', '')
 }
 </script>

@@ -434,9 +434,19 @@ const setInputMode = (mode: 'total' | 'individual') => {
   currentMultiplier.value = 1
 }
 
+// iOS Safari sometimes fires a touch-derived click AND a synthetic mouse
+// click ~50-100ms apart for the same tap, so a real "tap S20, tap S20"
+// turned into "S20, S20, S20" (=60). Ignore repeat inputs that land within
+// this cooldown.
+const INPUT_COOLDOWN_MS = 80
+let lastDartInputAt = 0
+
 const handleDartScore = (score: number) => {
   if (isInputDisabled.value) return
   if (currentThrows.value.length >= 3) return
+  const now = performance.now()
+  if (now - lastDartInputAt < INPUT_COOLDOWN_MS) return
+  lastDartInputAt = now
   const multiplier = score === 25 && currentMultiplier.value === 3 ? 2 : currentMultiplier.value
   const newThrows = [...currentThrows.value, { score, multiplier }]
   currentThrows.value = newThrows
