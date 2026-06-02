@@ -152,9 +152,20 @@ export const useAuthStore = defineStore('auth', {
       if (error) throw error
     },
     async logout() {
-      await supabase.auth.signOut()
+      // Reset local auth state FIRST so the UI swaps to the login screen
+      // immediately. supabase.auth.signOut() occasionally hangs (stale token,
+      // offline, request stuck) and the previous order left the button click
+      // looking dead until the network call resolved.
       this.session = null
       this.profile = null
+      this.loading = false
+      try {
+        // scope: 'local' only clears this tab's tokens — does not invalidate
+        // the refresh token on the server. Fast + works offline.
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch (err) {
+        console.warn('logout signOut failed (state already cleared)', err)
+      }
     }
   }
 })

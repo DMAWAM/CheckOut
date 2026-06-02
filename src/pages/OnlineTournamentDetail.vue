@@ -999,7 +999,27 @@ const fetchLiveSnapshot = async () => {
   liveLoading.value = true
   liveError.value = ''
   try {
-    liveSnapshot.value = await onlineStore.fetchLiveState(liveMatchId.value)
+    // Refresh tournament data in parallel so the spectator's matches list
+    // / standings / leaderboard pick up the new state (otherwise the
+    // status stays "in_progress" until the page is reloaded). This is the
+    // poor man's realtime — every 4s the spectator sees what the players
+    // see.
+    const detailRefreshPromise = tournamentId.value
+      ? onlineStore.fetchTournamentDetail(tournamentId.value).catch((err) => {
+          console.warn('tournament refresh failed', err)
+        })
+      : Promise.resolve()
+    const snap = await onlineStore.fetchLiveState(liveMatchId.value)
+    await detailRefreshPromise
+    liveSnapshot.value = snap
+
+    // If the match is now finished on the server, auto-close the live
+    // modal so the spectator sees the finished result instead of staring
+    // at a frozen snapshot.
+    const matchNow = onlineStore.matches.find((match) => match.id === liveMatchId.value)
+    if (matchNow && matchNow.status === 'finished') {
+      closeLiveMatch()
+    }
   } catch (err) {
     console.warn(err)
     liveError.value = 'Live-Daten konnten nicht geladen werden.'
