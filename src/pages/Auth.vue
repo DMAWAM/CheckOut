@@ -1,12 +1,8 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
     <div class="mb-8 sm:mb-10 text-center">
-      <img
-        src="/logo.png"
-        alt="Gümmi Masters"
-        class="mx-auto mb-4 h-32 sm:h-40 w-auto drop-shadow-lg"
-      />
-      <p class="text-base sm:text-xl text-muted-foreground">Darts Scoring & Statistiken</p>
+      <h1 class="text-5xl sm:text-6xl font-bold mb-2 text-foreground">CheckOut</h1>
+      <p class="text-base sm:text-xl text-muted-foreground">Vereins-Scoring & Statistiken</p>
     </div>
 
     <div class="w-full max-w-md bg-white border-2 border-border rounded-2xl p-6 sm:p-8 shadow-xl">
