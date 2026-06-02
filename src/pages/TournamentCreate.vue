@@ -1009,6 +1009,12 @@ const syncRoundOverrides = () => {
 
 watch(knockoutRoundLabels, () => syncRoundOverrides(), { immediate: true })
 
+// flush: 'sync' so the watcher applies the base format BEFORE any subsequent
+// code (e.g. a preset that flips usePhaseFormats and then customises the
+// per-phase formats) runs. Without sync the watcher would fire on the next
+// microtask and overwrite the preset's customisations, which previously
+// caused the Gümmi-Masters preset's "Gruppe fixe 2 Legs" setting to be
+// reset to baseFormat (first_to 3) on save.
 watch(
   () => usePhaseFormats.value,
   (enabled) => {
@@ -1016,7 +1022,8 @@ watch(
     applyFormatState(groupFormat, baseFormat)
     applyFormatState(knockoutFormat, baseFormat)
     syncRoundOverrides()
-  }
+  },
+  { flush: 'sync' }
 )
 
 const setFormatMode = (state: FormatState, mode: FormatState['mode']) => {
