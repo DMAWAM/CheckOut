@@ -475,3 +475,41 @@ as $$
 $$;
 
 grant execute on function public.get_friend_stats() to authenticated;
+
+-- =============================================================================
+-- Web Push Notifications
+-- =============================================================================
+-- One row per browser/device that has subscribed for push notifications.
+-- The (endpoint) column is unique per row so the same user can receive on
+-- multiple devices, but re-subscribing on the same device just updates keys.
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists push_subscriptions_user_id_idx on push_subscriptions(user_id);
+
+alter table push_subscriptions enable row level security;
+
+-- Users may read / insert / update / delete only their own subscriptions.
+drop policy if exists "push_subscriptions_owner_select" on push_subscriptions;
+create policy "push_subscriptions_owner_select" on push_subscriptions
+  for select to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "push_subscriptions_owner_insert" on push_subscriptions;
+create policy "push_subscriptions_owner_insert" on push_subscriptions
+  for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists "push_subscriptions_owner_update" on push_subscriptions;
+create policy "push_subscriptions_owner_update" on push_subscriptions
+  for update to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "push_subscriptions_owner_delete" on push_subscriptions;
+create policy "push_subscriptions_owner_delete" on push_subscriptions
+  for delete to authenticated using (auth.uid() = user_id);

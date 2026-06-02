@@ -670,6 +670,82 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       await this.ensureKnockoutPhase()
       await this.advanceKnockoutIfReady()
       await this.updateTournamentStatus()
+      // Notify the players of the next match in the same group so they can
+      // walk to the dartboard without anyone hunting them down.
+      void this.notifyNextMatchPlayers(tournamentId, matchId)
+    },
+    /**
+     * Send a "your match is up" push to the two players of the next pending
+     * match in the same group / phase as the one that just finished. Best
+     * effort — failures are logged, never thrown, since the user-facing
+     * result-recording path must keep working.
+     */
+    async notifyNextMatchPlayers(tournamentId: string, finishedMatchId: string) {
+      try {
+        const finished = this.matches.find((match) => match.id === finishedMatchId)
+        if (!finished) return
+        const groupIndex = finished.groupIndex
+        const phase = finished.phase
+
+        const candidates = this.matches
+          .filter((match) => match.status === 'pending')
+          .filter((match) => match.phase === phase)
+          .filter((match) => (match.groupIndex ?? null) === (groupIndex ?? null))
+          // Don't ping yourself for a match you just played
+          .filter((match) => match.id !== finishedMatchId)
+          .sort((a, b) => a.round - b.round || a.order - b.order)
+
+        const nextMatch = candidates[0]
+        if (!nextMatch) return
+        if (!nextMatch.playerAId || !nextMatch.playerBId) return
+
+        const tournamentName = this.currentTournament?.name ?? 'Turnier'
+        const playerAName =
+          this.players.find((player) => player.id === nextMatch.playerAId)?.name ?? 'Spieler A'
+        const playerBName =
+          this.players.find((player) => player.id === nextMatch.playerBId)?.name ?? 'Spieler B'
+
+        await this.sendPushToUsers({
+          userIds: [nextMatch.playerAId, nextMatch.playerBId],
+          tournamentId,
+          title: `Dein Spiel steht an – ${tournamentName}`,
+          body: `${playerAName} vs ${playerBName}. Bitte ans Board kommen.`,
+          url: `/tournaments/online/${tournamentId}`,
+          tag: `match-${nextMatch.id}`
+        })
+      } catch (err) {
+        console.warn('notifyNextMatchPlayers failed', err)
+      }
+    },
+    async sendPushToUsers(payload: {
+      userIds: string[]
+      tournamentId?: string
+      title: string
+      body: string
+      url?: string
+      tag?: string
+    }) {
+      const auth = useAuthStore()
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      const token = auth.session?.access_token
+      if (!supabaseUrl || !anonKey || !token) return
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey
+          },
+          body: JSON.stringify(payload)
+        })
+        if (!response.ok) {
+          console.warn('send-push non-OK', response.status, await response.text())
+        }
+      } catch (err) {
+        console.warn('send-push fetch failed', err)
+      }
     },
     async revertMatchResult(tournamentId: string, matchId: string) {
       await supabase

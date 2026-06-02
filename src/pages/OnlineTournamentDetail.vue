@@ -79,6 +79,44 @@
       </div>
 
       <div v-else-if="activeTab === 'players'" class="space-y-4">
+        <div
+          v-if="isPlayerInTournament && pushStatus !== 'unsupported'"
+          class="bg-white border-2 border-border rounded-2xl p-4 sm:p-5 flex items-start gap-3"
+        >
+          <i class="pi pi-bell text-2xl text-primary shrink-0 mt-0.5" />
+          <div class="min-w-0 flex-1">
+            <div class="font-bold text-foreground">Benachrichtigungen</div>
+            <p class="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              <span v-if="pushStatus === 'subscribed'">
+                Aktiv — wir pingen dich, sobald dein Spiel ansteht.
+              </span>
+              <span v-else-if="pushStatus === 'denied'">
+                Du hast Benachrichtigungen blockiert. Bitte in den Browser-Einstellungen freigeben.
+              </span>
+              <span v-else>
+                Lass dich pingen, sobald dein nächstes Spiel ansteht. Du musst die App nicht offen halten.
+              </span>
+            </p>
+            <p v-if="pushError" class="text-xs text-destructive mt-1">{{ pushError }}</p>
+          </div>
+          <button
+            v-if="pushStatus === 'subscribed'"
+            class="shrink-0 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors"
+            @click="disablePush"
+            :disabled="pushBusy"
+          >
+            Deaktivieren
+          </button>
+          <button
+            v-else
+            class="shrink-0 px-3 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs sm:text-sm disabled:opacity-60"
+            @click="enablePush"
+            :disabled="pushBusy || pushStatus === 'denied'"
+          >
+            Aktivieren
+          </button>
+        </div>
+
         <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-6">
           <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
           <div v-if="players.length === 0" class="text-sm text-muted-foreground">Keine Spieler.</div>
@@ -559,6 +597,13 @@ import type { MatchPlayerSummary } from '@/domain/matchSummary'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { resolveMatchDoubleOut, resolveMatchFormat } from '@/domain/tournamentFormat'
 import { normalizeImportedName, parseGroupedPlayerImport } from '@/domain/groupImport'
+import {
+  currentPermission as currentPushPermission,
+  getExistingSubscription,
+  pushNotificationsSupported,
+  subscribeToPush,
+  unsubscribeFromPush
+} from '@/services/pushNotifications'
 
 const router = useRouter()
 const route = useRoute()
@@ -585,6 +630,60 @@ const knockoutMatches = computed(() => matches.value.filter((match) => match.pha
 const loginCodes = computed(() => onlineStore.loginCodes)
 
 const isAdmin = computed(() => auth.session?.user?.id === tournament.value?.createdBy)
+const isPlayerInTournament = computed(() => {
+  const userId = auth.session?.user?.id
+  if (!userId) return false
+  return players.value.some((player) => player.id === userId)
+})
+
+const pushStatus = ref<'unsupported' | 'idle' | 'denied' | 'subscribed'>('idle')
+const pushBusy = ref(false)
+const pushError = ref('')
+
+const refreshPushStatus = async () => {
+  if (!pushNotificationsSupported()) {
+    pushStatus.value = 'unsupported'
+    return
+  }
+  const permission = currentPushPermission()
+  if (permission === 'denied') {
+    pushStatus.value = 'denied'
+    return
+  }
+  const existing = await getExistingSubscription().catch(() => null)
+  pushStatus.value = existing ? 'subscribed' : 'idle'
+}
+
+const enablePush = async () => {
+  pushError.value = ''
+  pushBusy.value = true
+  try {
+    await subscribeToPush()
+    pushStatus.value = 'subscribed'
+  } catch (err) {
+    pushError.value = (err as Error).message
+    if (currentPushPermission() === 'denied') {
+      pushStatus.value = 'denied'
+    }
+  } finally {
+    pushBusy.value = false
+  }
+}
+
+const disablePush = async () => {
+  pushError.value = ''
+  pushBusy.value = true
+  try {
+    await unsubscribeFromPush()
+    pushStatus.value = 'idle'
+  } catch (err) {
+    pushError.value = (err as Error).message
+  } finally {
+    pushBusy.value = false
+  }
+}
+
+void refreshPushStatus()
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
 const maxGroupCount = computed(() => (tournament.value?.mode === 'knockout' ? 1 : 32))
 const scheduleGenerated = computed(() => matches.value.length > 0)

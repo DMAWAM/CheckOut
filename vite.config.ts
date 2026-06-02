@@ -14,6 +14,10 @@ export default defineConfig(() => {
       vue(),
       VitePWA({
         registerType: 'autoUpdate',
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
+        injectRegister: 'auto',
         includeAssets: ['icon.svg'],
         manifest: {
           name: 'CheckOut',
@@ -32,7 +36,8 @@ export default defineConfig(() => {
           ]
         },
         devOptions: {
-          enabled: true
+          enabled: true,
+          type: 'module'
         }
       })
     ],
