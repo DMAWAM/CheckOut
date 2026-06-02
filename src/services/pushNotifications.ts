@@ -1,4 +1,5 @@
 import { supabase } from '@/services/supabase'
+import { useAuthStore } from '@/stores/authStore'
 
 const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -45,22 +46,46 @@ export const getExistingSubscription = async (): Promise<PushSubscription | null
   return registration.pushManager.getSubscription()
 }
 
+/**
+ * Idempotently persist whatever subscription the browser currently holds to
+ * the database, so a recovered/migrated/restored install doesn't sit there
+ * "subscribed locally but not reachable from the server" forever.
+ */
+export const ensureSubscriptionPersisted = async (): Promise<void> => {
+  const subscription = await getExistingSubscription()
+  if (!subscription) return
+  try {
+    await persistSubscription(subscription)
+  } catch (err) {
+    console.warn('push subscription reconcile failed', err)
+  }
+}
+
 const persistSubscription = async (subscription: PushSubscription) => {
+  const authStore = useAuthStore()
+  const userId = authStore.session?.user?.id
+  if (!userId) {
+    throw new Error('Bitte zuerst einloggen, dann Benachrichtigungen aktivieren.')
+  }
   const json = subscription.toJSON()
   const p256dh = arrayBufferToBase64(subscription.getKey('p256dh'))
-  const auth = arrayBufferToBase64(subscription.getKey('auth'))
-  await supabase
+  const authKey = arrayBufferToBase64(subscription.getKey('auth'))
+  const { error } = await supabase
     .from('push_subscriptions')
     .upsert(
       {
+        user_id: userId,
         endpoint: json.endpoint ?? '',
         p256dh,
-        auth,
+        auth: authKey,
         user_agent: navigator.userAgent,
         updated_at: new Date().toISOString()
       },
       { onConflict: 'endpoint' }
     )
+  if (error) {
+    throw new Error(`Push-Subscription konnte nicht gespeichert werden: ${error.message}`)
+  }
 }
 
 /**

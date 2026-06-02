@@ -599,6 +599,7 @@ import { resolveMatchDoubleOut, resolveMatchFormat } from '@/domain/tournamentFo
 import { normalizeImportedName, parseGroupedPlayerImport } from '@/domain/groupImport'
 import {
   currentPermission as currentPushPermission,
+  ensureSubscriptionPersisted,
   getExistingSubscription,
   pushNotificationsSupported,
   subscribeToPush,
@@ -652,6 +653,13 @@ const refreshPushStatus = async () => {
   }
   const existing = await getExistingSubscription().catch(() => null)
   pushStatus.value = existing ? 'subscribed' : 'idle'
+  // If the browser already has a local subscription but the DB row went
+  // missing (e.g. a previous persist failed silently because user_id was
+  // not set, or the user signed in as someone else), reconcile it now so
+  // pushes actually reach this device.
+  if (existing) {
+    void ensureSubscriptionPersisted()
+  }
 }
 
 const enablePush = async () => {
