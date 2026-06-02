@@ -1,13 +1,15 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-20">
-    <div class="bg-white border-b-2 border-border px-4 sm:px-6 py-6 sm:py-8 shadow-sm">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-12 h-12 bg-primary rounded-full flex items-center justify-center shadow-md shrink-0">
-          <span class="text-primary-foreground text-xl">🎯</span>
-        </div>
+    <div class="bg-white border-b-2 border-border px-4 sm:px-6 py-5 sm:py-6 shadow-sm">
+      <div class="flex items-center gap-3 sm:gap-4 mb-2">
+        <img
+          src="/logo.png"
+          alt="Gümmi Masters"
+          class="h-14 sm:h-16 w-auto shrink-0"
+        />
         <div class="min-w-0">
-          <h1 class="text-3xl sm:text-4xl font-bold text-foreground">CheckOut</h1>
-          <p class="text-sm text-muted-foreground">Vereins-Scoring & Statistiken</p>
+          <h1 class="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Gümmi Masters</h1>
+          <p class="text-xs sm:text-sm text-muted-foreground">Darts Scoring & Statistiken</p>
         </div>
       </div>
     </div>

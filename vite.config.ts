@@ -14,20 +14,32 @@ export default defineConfig(() => {
       vue(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg'],
+        includeAssets: ['logo.png', 'logo-192.png', 'logo-512.png', 'apple-touch-icon.png'],
         manifest: {
-          name: 'CheckOut',
-          short_name: 'CheckOut',
-          description: 'Mobile-first Darts Scoring & Statistik App',
+          name: 'Gümmi Masters',
+          short_name: 'Gümmi Masters',
+          description: 'Darts Scoring & Statistik App',
           theme_color: '#16A34A',
           background_color: '#FFFFFF',
           display: 'standalone',
           icons: [
             {
-              src: '/icon.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml',
+              src: '/logo-192.png',
+              sizes: '192x192',
+              type: 'image/png',
               purpose: 'any'
+            },
+            {
+              src: '/logo-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/logo-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         },
