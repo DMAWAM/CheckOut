@@ -451,81 +451,71 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'standings'" class="space-y-6">
-        <template v-if="isCombined">
-          <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="text-lg font-bold text-foreground">Gruppenphase</h2>
-              <span class="text-xs text-muted-foreground">Round Robin</span>
+      <div v-else-if="activeTab === 'groups'" class="space-y-5 sm:space-y-6">
+        <div v-if="showGroupStandings" class="space-y-5 sm:space-y-6">
+          <div
+            v-for="group in groupStandingsList"
+            :key="groupKey(group.index)"
+            class="space-y-2"
+          >
+            <div class="flex items-center justify-between gap-3 px-1">
+              <h3 class="text-base sm:text-lg font-bold text-foreground">{{ group.title }}</h3>
+              <span
+                v-if="group.totalMatches > 0"
+                class="shrink-0 text-[11px] font-bold rounded-full px-3 py-1"
+                :class="group.isFinished
+                  ? 'bg-primary/15 text-primary'
+                  : 'bg-muted text-muted-foreground'"
+              >
+                <template v-if="group.isFinished">
+                  <i class="pi pi-check-circle text-[10px] mr-1" />
+                  Abgeschlossen
+                </template>
+                <template v-else>
+                  {{ group.finishedMatches }}/{{ group.totalMatches }} Spiele
+                </template>
+              </span>
             </div>
-            <div v-if="showGroupStandings" class="space-y-6">
-              <TournamentStandingsTable
-                v-for="group in groupStandingsList"
-                :key="groupKey(group.index)"
-                :title="group.title"
-                :rows="group.rows"
-                :player-name="playerName"
-                :qualifier-count="qualifierCount"
-              />
-            </div>
-            <div v-else class="text-sm text-muted-foreground">Noch keine Gruppenspiele gespielt.</div>
-          </div>
-
-          <div class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="text-lg font-bold text-foreground">K.O.-Phase</h2>
-              <span class="text-xs text-muted-foreground">Finalrunde</span>
-            </div>
-            <div v-if="showKnockoutBracket">
-              <TournamentBracket
-                :matches="knockoutMatchesForView"
-                :player-name="bracketPlayerName"
-                :results="results"
-                :show-details="true"
-                :subtitle="bracketSubtitle"
-                @details="openMatchDetails"
-                title="K.O.-Baum"
-              />
-            </div>
-            <div v-else class="text-sm text-muted-foreground">Noch keine K.O.-Spiele vorhanden.</div>
-          </div>
-        </template>
-
-        <template v-else>
-          <div v-if="showKnockoutBracket">
-            <TournamentBracket
-              :matches="knockoutMatchesForView"
-              :player-name="bracketPlayerName"
-              :results="results"
-              :show-details="true"
-              :subtitle="bracketSubtitle"
-              @details="openMatchDetails"
-              title="K.O.-Baum"
-            />
-          </div>
-          <div v-if="showGroupStandings" class="space-y-6">
             <TournamentStandingsTable
-              v-for="group in groupStandingsList"
-              :key="groupKey(group.index)"
               :title="group.title"
               :rows="group.rows"
               :player-name="playerName"
               :qualifier-count="qualifierCount"
             />
           </div>
-          <TournamentStandingsTable
-            v-if="showFinalStandings"
-            title="Schlussrangliste"
-            :rows="finalStandings"
-            :player-name="playerName"
+        </div>
+        <TournamentStandingsTable
+          v-if="showFinalStandings && tournament?.mode === 'round_robin'"
+          title="Schlussrangliste"
+          :rows="finalStandings"
+          :player-name="playerName"
+        />
+        <div
+          v-if="!showGroupStandings && !showFinalStandings"
+          class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
+        >
+          Noch keine Gruppenspiele gespielt.
+        </div>
+      </div>
+
+      <div v-else-if="activeTab === 'knockout'" class="space-y-5 sm:space-y-6">
+        <div v-if="showKnockoutBracket">
+          <TournamentBracket
+            :matches="knockoutMatchesForView"
+            :player-name="bracketPlayerName"
+            :results="results"
+            :show-details="true"
+            :subtitle="bracketSubtitle"
+            @details="openMatchDetails"
+            title="K.O.-Baum"
           />
-          <div
-            v-if="!showGroupStandings && !showFinalStandings && !showKnockoutBracket"
-            class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
-          >
-            Noch keine Spiele gespielt.
-          </div>
-        </template>
+        </div>
+        <div
+          v-else
+          class="bg-white border-2 border-border rounded-2xl p-6 text-sm text-muted-foreground"
+        >
+          Noch keine K.O.-Spiele vorhanden.
+        </div>
       </div>
 
       <div v-else class="space-y-6">
@@ -612,15 +602,43 @@ const onlineStore = useOnlineTournamentsStore()
 const auth = useAuthStore()
 const gameStore = useGameStore()
 
-const activeTab = ref<'info' | 'players' | 'matches' | 'standings' | 'stats'>('matches')
-const tabs = ['info', 'players', 'matches', 'standings', 'stats'] as const
-const tabLabels = computed<Record<typeof tabs[number], string>>(() => ({
+type TabKey = 'info' | 'players' | 'matches' | 'groups' | 'knockout' | 'stats'
+const activeTab = ref<TabKey>('matches')
+
+const tabs = computed<TabKey[]>(() => {
+  const mode = tournament.value?.mode
+  const base: TabKey[] = ['info', 'players', 'matches']
+  if (mode === 'knockout') {
+    return [...base, 'knockout', 'stats']
+  }
+  if (mode === 'round_robin') {
+    return [...base, 'groups', 'stats']
+  }
+  // combined → both phases as separate tabs
+  return [...base, 'groups', 'knockout', 'stats']
+})
+
+const tabLabels = computed<Record<TabKey, string>>(() => ({
   info: 'Info',
   players: 'Spieler',
   matches: 'Spielplan',
-  standings: tournament.value?.mode === 'round_robin' ? 'Tabelle' : 'K.O.-Baum',
+  groups: 'Gruppen',
+  knockout: 'K.O.-Phase',
   stats: 'Statistiken'
 }))
+
+// If activeTab points at a tab not available in this mode (e.g. user comes
+// from a combined tournament back to a round_robin one, or vice versa),
+// fall back to "matches" so we never show a blank tab body.
+watch(
+  [tabs, activeTab],
+  ([available, current]) => {
+    if (!available.includes(current)) {
+      activeTab.value = 'matches'
+    }
+  },
+  { immediate: true }
+)
 
 const tournamentId = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id))
 const tournament = computed(() => onlineStore.currentTournament)
@@ -1106,21 +1124,42 @@ const groupLabel = (index: number) => String.fromCharCode(65 + index)
 const playerGroupBadge = (groupIndex?: number) =>
   groupIndex === undefined ? 'Nicht zugeteilt' : `Gruppe ${groupLabel(groupIndex)}`
 
-const groupStandingsList = computed(() => {
+interface GroupStandingsEntry {
+  index: number
+  title: string
+  rows: ReturnType<typeof onlineStore.standingsByGroup>
+  isFinished: boolean
+  totalMatches: number
+  finishedMatches: number
+}
+
+const groupStandingsList = computed<GroupStandingsEntry[]>(() => {
   if (!tournament.value || tournament.value.mode === 'knockout') return []
   const count = groupCount.value
-  if (count <= 1) {
-    const rows = onlineStore.standingsByGroup(0)
-    return rows.length > 0 ? [{ index: 0, title: 'Rangliste Gruppenphase', rows }] : []
-  }
-  return Array.from({ length: count }, (_, index) => {
+  const phaseMatches = matches.value.filter((match) => match.phase === 'round_robin')
+  const inGroup = (match: TournamentMatch, index: number) =>
+    (match.groupIndex ?? 0) === index && match.playerAId !== match.playerBId
+  const buildEntry = (index: number, title: string): GroupStandingsEntry | null => {
     const rows = onlineStore.standingsByGroup(index)
+    if (rows.length === 0) return null
+    const groupMatches = phaseMatches.filter((match) => inGroup(match, index))
+    const finishedMatches = groupMatches.filter((match) => match.status === 'finished').length
     return {
       index,
-      title: `Rangliste Gruppe ${groupLabel(index)}`,
-      rows
+      title,
+      rows,
+      totalMatches: groupMatches.length,
+      finishedMatches,
+      isFinished: groupMatches.length > 0 && finishedMatches === groupMatches.length
     }
-  }).filter((entry) => entry.rows.length > 0)
+  }
+  if (count <= 1) {
+    const entry = buildEntry(0, 'Rangliste Gruppenphase')
+    return entry ? [entry] : []
+  }
+  return Array.from({ length: count }, (_, index) =>
+    buildEntry(index, `Rangliste Gruppe ${groupLabel(index)}`)
+  ).filter((entry): entry is GroupStandingsEntry => entry !== null)
 })
 
 const finalStandings = computed(() => onlineStore.finalStandings)
@@ -1162,9 +1201,23 @@ const combinedSeedIds = computed(() => combinedSeedLabels.value.map((_, index) =
 
 const placeholderNameMap = computed(() => {
   const map = new Map<string, string>()
+  // Default placeholders ("1. Gruppe A", "2. Gruppe A", ...)
   combinedSeedLabels.value.forEach((label, index) => {
     map.set(`seed-${index}`, label)
   })
+  // Once a group is finished, swap its two placeholder seed slots for the
+  // real qualifier names. Layout is [1.A, 2.A, 1.B, 2.B, ...] — same
+  // ordering used by combinedSeedLabels.
+  if (isCombined.value) {
+    groupStandingsList.value.forEach((entry) => {
+      if (!entry.isFinished) return
+      const seedBase = entry.index * 2
+      const first = entry.rows[0]
+      const second = entry.rows[1]
+      if (first) map.set(`seed-${seedBase}`, playerName(first.playerId))
+      if (second) map.set(`seed-${seedBase + 1}`, playerName(second.playerId))
+    })
+  }
   return map
 })
 
