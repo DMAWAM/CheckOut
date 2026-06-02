@@ -216,10 +216,13 @@ alter table tournament_login_codes enable row level security;
 alter table friendships enable row level security;
 
 -- Profiles: readable by authenticated users, writable by owner
+drop policy if exists "profiles_read" on profiles;
 create policy "profiles_read" on profiles for select
 to authenticated using (true);
+drop policy if exists "profiles_insert" on profiles;
 create policy "profiles_insert" on profiles for insert
 to authenticated with check (auth.uid() = id);
+drop policy if exists "profiles_update" on profiles;
 create policy "profiles_update" on profiles for update
 to authenticated using (auth.uid() = id);
 
@@ -230,10 +233,13 @@ to authenticated using (
   created_by = auth.uid()
   or public.is_tournament_member(tournaments.id)
 );
+drop policy if exists "tournaments_insert" on tournaments;
 create policy "tournaments_insert" on tournaments for insert
 to authenticated with check (created_by = auth.uid());
+drop policy if exists "tournaments_update" on tournaments;
 create policy "tournaments_update" on tournaments for update
 to authenticated using (created_by = auth.uid());
+drop policy if exists "tournaments_delete" on tournaments;
 create policy "tournaments_delete" on tournaments for delete
 to authenticated using (created_by = auth.uid());
 
@@ -253,6 +259,7 @@ to authenticated using (
 with check (
   public.is_tournament_admin(tournament_players.tournament_id)
 );
+drop policy if exists "tournament_players_insert_admin" on tournament_players;
 create policy "tournament_players_insert_admin" on tournament_players for insert
 to authenticated with check (
   exists (
@@ -268,6 +275,7 @@ to authenticated using (
 );
 
 -- Invites: only creator can manage
+drop policy if exists "invites_read" on tournament_invites;
 create policy "invites_read" on tournament_invites for select
 to authenticated using (
   exists (
@@ -276,6 +284,7 @@ to authenticated using (
     and t.created_by = auth.uid()
   )
 );
+drop policy if exists "invites_insert" on tournament_invites;
 create policy "invites_insert" on tournament_invites for insert
 to authenticated with check (
   exists (
@@ -292,12 +301,14 @@ to authenticated using (
   public.is_tournament_member(tournament_matches.tournament_id)
   or public.is_tournament_admin(tournament_matches.tournament_id)
 );
+drop policy if exists "matches_update" on tournament_matches;
 create policy "matches_update" on tournament_matches for update
 to authenticated using (
   public.is_tournament_admin(tournament_matches.tournament_id)
   or tournament_matches.player_a_id = auth.uid()
   or tournament_matches.player_b_id = auth.uid()
 );
+drop policy if exists "matches_insert" on tournament_matches;
 create policy "matches_insert" on tournament_matches for insert
 to authenticated with check (
   public.is_tournament_admin(tournament_matches.tournament_id)
@@ -310,6 +321,7 @@ to authenticated using (
   public.is_tournament_member(tournament_match_results.tournament_id)
   or public.is_tournament_admin(tournament_match_results.tournament_id)
 );
+drop policy if exists "results_insert" on tournament_match_results;
 create policy "results_insert" on tournament_match_results for insert
 to authenticated with check (
   exists (
@@ -323,6 +335,7 @@ to authenticated with check (
     and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
   )
 );
+drop policy if exists "results_update" on tournament_match_results;
 create policy "results_update" on tournament_match_results for update
 to authenticated using (
   exists (
@@ -337,11 +350,13 @@ to authenticated using (
   )
 );
 
+drop policy if exists "live_read" on tournament_match_live;
 create policy "live_read" on tournament_match_live for select
 to authenticated using (
   public.is_tournament_member(tournament_match_live.tournament_id)
   or public.is_tournament_admin(tournament_match_live.tournament_id)
 );
+drop policy if exists "live_insert" on tournament_match_live;
 create policy "live_insert" on tournament_match_live for insert
 to authenticated with check (
   public.is_tournament_admin(tournament_match_live.tournament_id)
@@ -351,6 +366,7 @@ to authenticated with check (
     and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
   )
 );
+drop policy if exists "live_update" on tournament_match_live;
 create policy "live_update" on tournament_match_live for update
 to authenticated using (
   public.is_tournament_admin(tournament_match_live.tournament_id)
@@ -360,6 +376,7 @@ to authenticated using (
     and (m.player_a_id = auth.uid() or m.player_b_id = auth.uid())
   )
 );
+drop policy if exists "live_delete" on tournament_match_live;
 create policy "live_delete" on tournament_match_live for delete
 to authenticated using (
   public.is_tournament_admin(tournament_match_live.tournament_id)
@@ -371,10 +388,12 @@ to authenticated using (
 );
 
 -- Login codes: only admin can read/manage
+drop policy if exists "login_codes_read" on tournament_login_codes;
 create policy "login_codes_read" on tournament_login_codes for select
 to authenticated using (
   public.is_tournament_admin(tournament_login_codes.tournament_id)
 );
+drop policy if exists "login_codes_insert" on tournament_login_codes;
 create policy "login_codes_insert" on tournament_login_codes for insert
 to authenticated with check (
   public.is_tournament_admin(tournament_login_codes.tournament_id)
@@ -385,15 +404,18 @@ to authenticated using (
   public.is_tournament_admin(tournament_login_codes.tournament_id)
 );
 
+drop policy if exists "friends_select" on friendships;
 create policy "friends_select" on friendships for select
 to authenticated using (user_id = auth.uid());
 
+drop policy if exists "friends_insert" on friendships;
 create policy "friends_insert" on friendships for insert
 to authenticated with check (
   user_id = auth.uid()
   and friend_id <> auth.uid()
 );
 
+drop policy if exists "friends_delete" on friendships;
 create policy "friends_delete" on friendships for delete
 to authenticated using (user_id = auth.uid());
 

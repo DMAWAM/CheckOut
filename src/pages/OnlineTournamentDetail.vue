@@ -232,7 +232,13 @@
 
         <div class="bg-white border-2 border-border rounded-2xl p-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-foreground">Offene Paarungen</h2>
+            <div>
+              <h2 class="text-lg font-bold text-foreground">Spielplan</h2>
+              <p class="text-xs text-muted-foreground font-semibold mt-1">
+                Gruppenspiele laufen pro Dartscheibe von oben nach unten. Das nächste Spiel wird erst freigegeben,
+                wenn das vorherige abgeschlossen ist.
+              </p>
+            </div>
             <span class="text-xs font-semibold text-muted-foreground">{{ openMatches.length }} offen</span>
           </div>
 
@@ -240,56 +246,87 @@
             Keine offenen Paarungen. Prüfe laufende oder beendete Matches.
           </div>
 
-          <div v-else class="space-y-3">
-            <div
-              v-for="match in openMatches"
-              :key="match.id"
-              class="w-full flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-4 text-left transition-all"
-              :class="match.status === 'in_progress' ? 'cursor-pointer hover:shadow-md' : ''"
-              @click="handleMatchClick(match)"
+          <div v-else class="space-y-5">
+            <section
+              v-for="section in scheduleSections"
+              :key="section.key"
+              class="rounded-2xl border-2 p-4"
+              :class="section.isOwnGroup ? 'border-primary bg-primary/5' : 'border-border bg-muted/20'"
             >
-              <div>
-                <div class="font-bold text-foreground">
-                  {{ playerName(match.playerAId) }} vs {{ playerName(match.playerBId) }}
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <h3 class="font-bold text-foreground">{{ section.title }}</h3>
+                  <p class="text-xs text-muted-foreground font-semibold mt-1">{{ section.subtitle }}</p>
                 </div>
-                <div class="text-xs text-muted-foreground font-semibold mt-1">
-                  {{ phaseLabel(match.phase) }}
-                  <span v-if="groupCount > 1 && match.groupIndex !== undefined">
-                    · Gruppe {{ groupLabel(match.groupIndex) }}
-                  </span>
-                  · Runde {{ match.round }}
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  v-if="canStartMatch(match)"
-                  @click.stop="startMatch(match.id)"
-                  class="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold"
-                >
-                  Starten
-                </button>
-                <button
-                  v-else-if="canResumeMatch(match)"
-                  @click.stop="resumeMatch(match.id)"
-                  class="px-3 py-1 rounded-full bg-dart-gold text-white text-xs font-bold"
-                >
-                  Fortsetzen
-                </button>
-                <button
-                  v-else-if="match.status === 'in_progress'"
-                  @click.stop="openLiveMatch(match.id)"
-                  class="px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs font-bold"
-                >
-                  Live ansehen
-                </button>
-                <span
-                  v-else
-                  class="px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground"
-                >
-                  bereit
+                <span class="text-xs font-bold rounded-full bg-white border-2 border-border px-3 py-1">
+                  {{ section.matches.length }} offen
                 </span>
               </div>
-            </div>
+
+              <div class="space-y-3">
+                <div
+                  v-for="match in section.matches"
+                  :key="match.id"
+                  class="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white border-2 border-border rounded-xl px-4 py-4 text-left transition-all"
+                  :class="match.status === 'in_progress' ? 'cursor-pointer hover:shadow-md hover:border-primary/60' : ''"
+                  @click="handleMatchClick(match)"
+                >
+                  <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-xs font-bold text-muted-foreground">#{{ groupSequenceNumber(match) }}</span>
+                      <span class="font-bold text-foreground">
+                        {{ playerName(match.playerAId) }} vs {{ playerName(match.playerBId) }}
+                      </span>
+                    </div>
+                    <div class="text-xs text-muted-foreground font-semibold mt-1">
+                      {{ phaseLabel(match.phase) }}
+                      <span v-if="groupCount > 1 && match.groupIndex !== undefined">
+                        · Gruppe {{ groupLabel(match.groupIndex) }}
+                      </span>
+                      · Runde {{ match.round }}
+                      <span v-if="!isMatchUnlocked(match)" class="text-dart-gold">
+                        · wartet auf vorheriges Spiel
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="canStartMatch(match)"
+                      @click.stop="startMatch(match.id)"
+                      class="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold"
+                    >
+                      Starten
+                    </button>
+                    <button
+                      v-else-if="canResumeMatch(match)"
+                      @click.stop="resumeMatch(match.id)"
+                      class="px-3 py-1 rounded-full bg-dart-gold text-white text-xs font-bold"
+                    >
+                      Fortsetzen
+                    </button>
+                    <button
+                      v-else-if="match.status === 'in_progress'"
+                      @click.stop="openLiveMatch(match.id)"
+                      class="px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs font-bold"
+                    >
+                      Live ansehen
+                    </button>
+                    <span
+                      v-else-if="!isMatchUnlocked(match)"
+                      class="px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground"
+                    >
+                      Gesperrt
+                    </span>
+                    <span
+                      v-else
+                      class="px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary"
+                    >
+                      bereit
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
           <p v-if="matchActionError" class="text-xs text-destructive mt-3">
             {{ matchActionError }}
@@ -690,6 +727,101 @@ const openMatches = computed(() =>
       return rank(a.status) - rank(b.status) || a.order - b.order
     })
 )
+
+interface ScheduleSection {
+  key: string
+  title: string
+  subtitle: string
+  matches: TournamentMatch[]
+  isOwnGroup?: boolean
+}
+
+const sortMatchesChronologically = (entries: TournamentMatch[]) =>
+  entries.slice().sort((a, b) => a.round - b.round || a.order - b.order)
+
+const userGroupIndex = computed(() => {
+  const userId = auth.session?.user?.id
+  if (!userId) return undefined
+  return players.value.find((player) => player.id === userId)?.groupIndex
+})
+
+const roundRobinOpenMatchesByGroup = computed(() => {
+  const groups = new Map<number, TournamentMatch[]>()
+  openMatches.value
+    .filter((match) => match.phase === 'round_robin')
+    .forEach((match) => {
+      const groupIndex = match.groupIndex ?? 0
+      const groupMatches = groups.get(groupIndex) ?? []
+      groupMatches.push(match)
+      groups.set(groupIndex, groupMatches)
+    })
+  return groups
+})
+
+const knockoutOpenMatches = computed(() =>
+  sortMatchesChronologically(openMatches.value.filter((match) => match.phase === 'knockout'))
+)
+
+const scheduleSections = computed<ScheduleSection[]>(() => {
+  const sections: ScheduleSection[] = []
+  const userGroup = userGroupIndex.value
+
+  if (userGroup !== undefined) {
+    const ownMatches = roundRobinOpenMatchesByGroup.value.get(userGroup)
+    if (ownMatches?.length) {
+      sections.push({
+        key: `own-group-${userGroup}`,
+        title: `Deine Gruppe ${groupLabel(userGroup)}`,
+        subtitle: 'Dartscheibe deiner Gruppe · Spiele von oben nach unten',
+        matches: sortMatchesChronologically(ownMatches),
+        isOwnGroup: true
+      })
+    }
+  }
+
+  Array.from(roundRobinOpenMatchesByGroup.value.entries())
+    .filter(([groupIndex]) => groupIndex !== userGroup)
+    .sort(([groupA], [groupB]) => groupA - groupB)
+    .forEach(([groupIndex, groupMatches]) => {
+      sections.push({
+        key: `group-${groupIndex}`,
+        title: `Gruppe ${groupLabel(groupIndex)}`,
+        subtitle: 'Eigene Dartscheibe · chronologischer Ablauf',
+        matches: sortMatchesChronologically(groupMatches)
+      })
+    })
+
+  if (knockoutOpenMatches.value.length) {
+    sections.push({
+      key: 'knockout',
+      title: 'K.O.-Phase',
+      subtitle: 'K.O.-Spiele nach Turnierbaum',
+      matches: knockoutOpenMatches.value
+    })
+  }
+
+  return sections
+})
+
+const groupSequenceNumber = (match: TournamentMatch) => {
+  if (match.phase !== 'round_robin') return match.order
+  const groupMatches = sortMatchesChronologically(
+    matches.value.filter((entry) => entry.phase === 'round_robin' && (entry.groupIndex ?? 0) === (match.groupIndex ?? 0))
+  )
+  const index = groupMatches.findIndex((entry) => entry.id === match.id)
+  return index >= 0 ? index + 1 : match.order
+}
+
+const isMatchUnlocked = (match: TournamentMatch) => {
+  if (match.status === 'in_progress' || isMatchFinished(match)) return true
+  if (match.phase !== 'round_robin') return true
+  const groupMatches = sortMatchesChronologically(
+    matches.value.filter((entry) => entry.phase === 'round_robin' && (entry.groupIndex ?? 0) === (match.groupIndex ?? 0))
+  )
+  const currentIndex = groupMatches.findIndex((entry) => entry.id === match.id)
+  if (currentIndex <= 0) return true
+  return groupMatches.slice(0, currentIndex).every((entry) => isMatchFinished(entry))
+}
 const finishedMatches = computed(() => matches.value.filter((match) => isMatchFinished(match)))
 
 interface FinishedMatchEntry {
@@ -1312,7 +1444,7 @@ const canStartMatch = (match: TournamentMatch) => {
   const userId = auth.session?.user?.id
   if (!userId) return false
   const isParticipant = match.playerAId === userId || match.playerBId === userId
-  return isParticipant && match.status === 'pending'
+  return isParticipant && match.status === 'pending' && isMatchUnlocked(match)
 }
 
 const canResumeMatch = (match: TournamentMatch) => {
@@ -1345,6 +1477,10 @@ const startMatch = async (matchId: string) => {
   matchActionError.value = ''
   const match = matches.value.find((entry) => entry.id === matchId)
   if (!match || !tournament.value) return
+  if (!isMatchUnlocked(match)) {
+    matchActionError.value = 'Dieses Gruppenspiel ist noch gesperrt. Bitte zuerst das vorherige Spiel dieser Gruppe abschliessen.'
+    return
+  }
   const playerA = players.value.find((player) => player.id === match.playerAId)
   const playerB = players.value.find((player) => player.id === match.playerBId)
   if (!playerA || !playerB) return
