@@ -1,17 +1,17 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-20">
-    <div class="bg-white border-b-2 border-border px-6 py-6 shadow-sm">
-      <div class="flex items-center justify-between gap-4 mb-4 flex-wrap">
-        <div class="flex items-center gap-3">
+    <div class="bg-white border-b-2 border-border px-4 sm:px-6 py-5 sm:py-6 shadow-sm">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <button
             @click="router.push('/tournaments')"
-            class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
+            class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
           >
             <i class="pi pi-arrow-left text-xl" />
           </button>
-          <div>
-            <h1 class="text-3xl font-bold text-foreground">{{ tournament?.name ?? 'Turnier' }}</h1>
-            <p class="text-sm text-muted-foreground">
+          <div class="min-w-0">
+            <h1 class="text-xl sm:text-3xl font-bold text-foreground truncate">{{ tournament?.name ?? 'Turnier' }}</h1>
+            <p class="text-xs sm:text-sm text-muted-foreground truncate">
               {{ modeLabel }} • {{ tournamentStartingScore }} {{ tournament?.settings.doubleOut ? 'Double-Out' : 'Single-Out' }}
             </p>
           </div>
@@ -19,18 +19,18 @@
         <button
           v-if="tournament"
           @click="confirmDelete"
-          class="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground font-bold text-sm hover:opacity-90 transition-all"
+          class="shrink-0 px-3 sm:px-4 py-2 rounded-xl bg-destructive text-destructive-foreground font-bold text-xs sm:text-sm hover:opacity-90 transition-all"
         >
-          Turnier löschen
+          Löschen
         </button>
       </div>
 
-      <div class="flex gap-2 overflow-x-auto pb-2 -mx-6 px-6">
+      <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-hide">
         <button
           v-for="tab in tabs"
           :key="tab"
           @click="activeTab = tab"
-          class="px-5 py-2.5 rounded-xl whitespace-nowrap font-bold transition-all border-2"
+          class="px-4 sm:px-5 py-2.5 rounded-xl whitespace-nowrap font-bold text-sm sm:text-base transition-all border-2"
           :class="activeTab === tab
             ? 'bg-primary text-primary-foreground border-primary shadow-md'
             : 'bg-white border-border text-foreground'"
@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <div class="px-6 py-6 space-y-6">
+    <div class="px-4 sm:px-6 py-5 sm:py-6 space-y-5 sm:space-y-6">
       <div v-if="activeTab === 'info'" class="space-y-6">
         <div class="bg-white border-2 border-border rounded-2xl p-6">
           <h2 class="text-lg font-bold text-foreground mb-4">Turnier-Info</h2>

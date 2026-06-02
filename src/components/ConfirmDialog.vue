@@ -2,11 +2,12 @@
   <Teleport to="body">
     <div
       v-if="open"
-      class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center"
+      class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 sm:items-center"
       role="dialog"
       aria-modal="true"
+      style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);"
     >
-      <div class="w-full max-w-md rounded-2xl border-2 border-border bg-white p-6 shadow-lg">
+      <div class="w-full max-w-md rounded-2xl border-2 border-border bg-white p-5 sm:p-6 shadow-lg max-h-full overflow-y-auto">
         <div class="mb-4">
           <h3 class="text-lg font-bold text-foreground">{{ title }}</h3>
           <p v-if="message" class="text-sm text-muted-foreground mt-1 whitespace-pre-line">{{ message }}</p>

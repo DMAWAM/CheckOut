@@ -78,3 +78,13 @@ img {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Hide native scrollbars on horizontal nav rows so a swipeable tab bar
+   doesn't show an ugly grey bar across the bottom on mobile. */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+

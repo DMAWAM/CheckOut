@@ -1,10 +1,11 @@
 <template>
   <div
     v-if="open && match"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4"
     @click.self="emit('close')"
+    style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);"
   >
-    <div class="w-full max-w-3xl bg-white rounded-2xl border-2 border-border shadow-2xl p-6">
+    <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl border-t-2 sm:border-2 border-border shadow-2xl p-4 sm:p-6">
       <div class="flex items-center justify-between mb-4">
         <div>
           <div class="text-lg font-bold text-foreground">

@@ -1,21 +1,21 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-24">
-    <div class="bg-white border-b-2 border-border px-6 py-6 shadow-sm">
-      <div class="flex items-center gap-4">
+  <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-10">
+    <div class="bg-white border-b-2 border-border px-4 sm:px-6 py-5 sm:py-6 shadow-sm">
+      <div class="flex items-center gap-3 sm:gap-4">
         <button
           @click="router.push('/tournaments')"
-          class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
+          class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
         >
           <i class="pi pi-arrow-left text-xl" />
         </button>
-        <div>
-          <h1 class="text-3xl font-bold text-foreground">Neues Turnier</h1>
-          <p class="text-sm text-muted-foreground">Round Robin, K.O. oder Kombi-Modus</p>
+        <div class="min-w-0 flex-1">
+          <h1 class="text-2xl sm:text-3xl font-bold text-foreground">Neues Turnier</h1>
+          <p class="text-xs sm:text-sm text-muted-foreground truncate">Round Robin, K.O. oder Kombi-Modus</p>
         </div>
       </div>
     </div>
 
-    <div class="px-6 py-6 space-y-6">
+    <div class="px-4 sm:px-6 py-5 sm:py-6 space-y-5 sm:space-y-6">
       <div class="bg-white border-2 border-border rounded-2xl p-6">
         <h2 class="text-lg font-bold text-foreground mb-4">Turnierart</h2>
         <div class="grid grid-cols-2 gap-3">

@@ -291,7 +291,7 @@ const championName = computed(() => {
 }
 
 .bracket-card {
-  padding: 32px;
+  padding: 16px;
   min-width: max-content;
   background-image:
     radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.12) 0%, transparent 40%),
@@ -592,11 +592,11 @@ const championName = computed(() => {
 
 @media (max-width: 640px) {
   .bracket-card {
-    padding: 26px;
+    padding: 16px;
   }
 
   .bracket-round {
-    min-width: 240px;
+    min-width: 220px;
   }
 
   .bracket-match {

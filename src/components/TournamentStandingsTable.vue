@@ -1,11 +1,16 @@
 <template>
-  <div class="bg-white border-2 border-border rounded-2xl p-5 shadow-sm">
+  <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-5 shadow-sm">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-bold text-foreground">{{ title }}</h3>
+      <h3 class="text-base sm:text-lg font-bold text-foreground">{{ title }}</h3>
       <span class="text-xs font-semibold text-muted-foreground">{{ rows.length }} Spieler</span>
     </div>
 
-    <div class="overflow-x-auto">
+    <p class="md:hidden text-[11px] text-muted-foreground font-semibold mb-2">
+      <i class="pi pi-arrows-h text-[10px] mr-1" />
+      Tabelle seitlich wischen für mehr Spalten.
+    </p>
+
+    <div class="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style="-webkit-overflow-scrolling: touch;">
       <table class="min-w-[900px] w-full text-xs border-collapse">
         <thead>
           <tr class="text-muted-foreground">
