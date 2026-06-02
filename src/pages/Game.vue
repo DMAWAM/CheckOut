@@ -213,22 +213,30 @@
 
     <div v-if="showCheckoutDialog" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
       <div class="bg-white border-2 border-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <h3 class="text-lg font-bold text-foreground mb-4">Double-Out bestätigen</h3>
-        <p class="text-sm text-muted-foreground mb-6">Checkout mit Double getroffen?</p>
-        <div class="grid gap-3">
+        <h3 class="text-lg font-bold text-foreground mb-2">Checkout bestätigen</h3>
+        <p class="text-sm text-muted-foreground mb-5">
+          Wie viele Darts hast du für diese Aufnahme gebraucht?
+          <span v-if="checkoutRequiresDouble" class="block mt-1">
+            (Der letzte Pfeil muss auf einem Doppel gelandet sein.)
+          </span>
+        </p>
+        <div class="grid grid-cols-3 gap-2 mb-3">
           <button
-            class="w-full bg-primary text-primary-foreground rounded-xl py-3 font-bold"
-            @click="confirmCheckout(true)"
+            v-for="darts in [1, 2, 3]"
+            :key="`darts-${darts}`"
+            class="rounded-xl py-4 font-black text-lg border-2 border-primary bg-primary text-primary-foreground active:scale-95 transition-all"
+            @click="confirmCheckout(darts, true)"
           >
-            Double getroffen
-          </button>
-          <button
-            class="w-full bg-secondary text-secondary-foreground rounded-xl py-3 font-bold"
-            @click="confirmCheckout(false)"
-          >
-            Kein Double (Bust)
+            {{ darts }} {{ darts === 1 ? 'Pfeil' : 'Pfeile' }}
           </button>
         </div>
+        <button
+          v-if="checkoutRequiresDouble"
+          class="w-full bg-destructive text-destructive-foreground rounded-xl py-3 font-bold"
+          @click="confirmCheckout(3, false)"
+        >
+          Bust – kein Double getroffen
+        </button>
       </div>
     </div>
     </div>
@@ -299,6 +307,7 @@ const goAfterMatch = () => {
 }
 
 const showCheckoutDialog = computed(() => game.pendingCheckout !== null)
+const checkoutRequiresDouble = computed(() => game.pendingCheckout?.requiresDouble ?? false)
 const isInputDisabled = computed(() => game.legWinnerId !== null)
 
 const statsByPlayer = computed(() => {
@@ -377,8 +386,8 @@ const undo = () => {
   game.undoLastTurn()
 }
 
-const confirmCheckout = (doubleHit: boolean) => {
-  game.confirmCheckout(doubleHit)
+const confirmCheckout = (dartsUsed: number, doubleHit: boolean) => {
+  game.confirmCheckout(dartsUsed, doubleHit)
 }
 
 const setInputMode = (mode: 'total' | 'individual') => {
@@ -418,7 +427,9 @@ const submitIndividualTurn = (
   checkoutDouble = false
 ) => {
   const total = throws.reduce((sum, t) => sum + t.score * t.multiplier, 0)
-  game.submitKnownTurn(total, checkoutDouble)
+  // Individual mode already knows exactly how many darts were thrown — pass
+  // it through so the checkout-quote / 3-dart-average use the real count.
+  game.submitKnownTurn(total, checkoutDouble, throws.length)
   currentThrows.value = []
   currentMultiplier.value = 1
 }

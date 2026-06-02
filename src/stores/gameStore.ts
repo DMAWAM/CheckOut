@@ -11,6 +11,9 @@ import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 
 interface PendingCheckout {
   points: number
+  /** true if the checkout-confirmation needs to ask whether the final dart hit
+   *  a double (only relevant in double-out matches). */
+  requiresDouble: boolean
 }
 
 
@@ -148,31 +151,51 @@ export const useGameStore = defineStore('game', {
       if (this.pendingCheckout || this.legWinnerId) return
 
       const startedScore = this.scores[this.activePlayerId]
+      const isCheckout = startedScore - points === 0
 
-      if (this.match.doubleOut && startedScore - points === 0) {
-        this.pendingCheckout = { points }
+      if (isCheckout) {
+        // Ask the user how many darts were used and (in double-out) whether
+        // the final dart was a double. Both pieces are needed for the
+        // checkout-quote and 3-dart-average stats.
+        this.pendingCheckout = { points, requiresDouble: this.match.doubleOut }
         return
       }
 
       this.applyTurn(points, false)
     },
-    confirmCheckout(doubleHit: boolean) {
+    /**
+     * Resolve a pending checkout.
+     * @param dartsUsed how many darts the player took for this aufnahme (1-3)
+     * @param doubleHit true if the final dart landed in a double (only
+     *   relevant for double-out matches; ignored otherwise)
+     */
+    confirmCheckout(dartsUsed: number, doubleHit: boolean) {
       if (!this.pendingCheckout) return
-      this.applyTurn(this.pendingCheckout.points, doubleHit)
+      const safeDarts = Math.max(1, Math.min(3, Math.round(dartsUsed))) as 1 | 2 | 3
+      this.applyTurn(this.pendingCheckout.points, doubleHit, safeDarts)
       this.pendingCheckout = null
     },
-    submitKnownTurn(points: number, checkoutDouble: boolean) {
+    submitKnownTurn(points: number, checkoutDouble: boolean, dartsUsed?: number) {
       if (!this.activePlayerId || !this.leg || !this.match) return
       this.pendingCheckout = null
-      this.applyTurn(points, checkoutDouble)
+      this.applyTurn(points, checkoutDouble, dartsUsed)
     },
     cancelPendingCheckout() {
       this.pendingCheckout = null
     },
-    applyTurn(points: number, checkoutDouble: boolean) {
+    applyTurn(points: number, checkoutDouble: boolean, dartsUsed?: number) {
       if (!this.activePlayerId || !this.leg || !this.match) return
 
       const startedScore = this.scores[this.activePlayerId]
+      const isCheckout = startedScore - points === 0
+      const isBustFromMissedDouble = isCheckout && this.match.doubleOut && !checkoutDouble
+      // Non-checkout turns always use 3 darts; checkout turns use the
+      // player-provided count (or default to 3 if unknown). A bust on the
+      // final double also counts as 3 darts thrown (the player took swings).
+      const dartsThrown = !isCheckout || isBustFromMissedDouble
+        ? 3
+        : Math.max(1, Math.min(3, Math.round(dartsUsed ?? 3)))
+
       const { turn, nextScore, legWon } = createTurn({
         turnId: createId(),
         legId: this.leg.id,
@@ -181,7 +204,8 @@ export const useGameStore = defineStore('game', {
         startedScore,
         points,
         doubleOut: this.match.doubleOut,
-        checkoutDouble
+        checkoutDouble,
+        dartsThrown
       })
 
       this.turns.push(turn)

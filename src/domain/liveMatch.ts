@@ -8,7 +8,7 @@ export interface LiveMatchSnapshot {
   turns: Turn[]
   scores: Record<string, number>
   activePlayerId: string | null
-  pendingCheckout: { points: number } | null
+  pendingCheckout: { points: number; requiresDouble?: boolean } | null
   legWinnerId: string | null
   legWins: Record<string, number>
   setWins: Record<string, number>
