@@ -25,12 +25,12 @@
         </button>
       </div>
 
-      <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-hide">
+      <div class="flex flex-wrap gap-2">
         <button
           v-for="tab in tabs"
           :key="tab"
           @click="activeTab = tab"
-          class="px-4 sm:px-5 py-2.5 rounded-xl whitespace-nowrap font-bold text-sm sm:text-base transition-all border-2"
+          class="px-3 sm:px-5 py-2.5 rounded-xl whitespace-nowrap font-bold text-sm sm:text-base transition-all border-2"
           :class="activeTab === tab
             ? 'bg-primary text-primary-foreground border-primary shadow-md'
             : 'bg-white border-border text-foreground'"

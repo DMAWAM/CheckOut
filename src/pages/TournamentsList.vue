@@ -63,18 +63,18 @@
           </button>
         </div>
       </div>
-      <div class="bg-white border-2 border-border rounded-2xl p-6 mb-6">
+      <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-6 mb-6">
         <h2 class="text-lg font-bold text-foreground mb-3">Online-Turnier beitreten</h2>
         <div class="flex gap-2">
           <input
             v-model="inviteCode"
             type="text"
             placeholder="Invite-Code"
-            class="flex-1 px-4 py-3 border-2 border-border rounded-xl focus:border-primary focus:outline-none bg-background text-foreground"
+            class="flex-1 min-w-0 px-4 py-3 border-2 border-border rounded-xl focus:border-primary focus:outline-none bg-background text-foreground"
           />
           <button
             @click="joinOnlineTournament"
-            class="px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold"
+            class="shrink-0 px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold"
           >
             Beitreten
           </button>

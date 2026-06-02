@@ -25,12 +25,12 @@
         </button>
       </div>
 
-      <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-hide">
+      <div class="flex flex-wrap gap-2">
         <button
           v-for="tab in tabs"
           :key="tab"
           @click="activeTab = tab"
-          class="px-4 sm:px-5 py-2.5 rounded-xl whitespace-nowrap font-bold text-sm sm:text-base transition-all border-2"
+          class="px-3 sm:px-5 py-2.5 rounded-xl whitespace-nowrap font-bold text-sm sm:text-base transition-all border-2"
           :class="activeTab === tab
             ? 'bg-primary text-primary-foreground border-primary shadow-md'
             : 'bg-white border-border text-foreground'"
@@ -79,25 +79,27 @@
       </div>
 
       <div v-else-if="activeTab === 'players'" class="space-y-4">
-        <div class="bg-white border-2 border-border rounded-2xl p-6">
+        <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-6">
           <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
           <div v-if="players.length === 0" class="text-sm text-muted-foreground">Keine Spieler.</div>
-          <div v-else class="space-y-3">
+          <div v-else class="space-y-2">
             <div
               v-for="player in players"
               :key="player.id"
-              class="flex items-center justify-between bg-muted/40 border-2 border-border rounded-xl px-4 py-3"
+              class="flex items-center justify-between gap-3 bg-muted/40 border-2 border-border rounded-xl px-3 sm:px-4 py-2.5 sm:py-3"
             >
-              <div class="flex items-center gap-3">
-                <span class="font-semibold text-foreground">{{ player.name }}</span>
-                <span
-                  v-if="groupCount > 1"
-                  class="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full"
-                >
-                  {{ playerGroupBadge(player.groupIndex) }}
-                </span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="font-semibold text-foreground truncate">{{ player.name }}</span>
+                  <span
+                    v-if="groupCount > 1"
+                    class="shrink-0 text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full"
+                  >
+                    {{ playerGroupBadge(player.groupIndex) }}
+                  </span>
+                </div>
+                <span class="block text-[11px] text-muted-foreground truncate mt-0.5">@{{ player.username }}</span>
               </div>
-              <span class="text-xs text-muted-foreground">@{{ player.username }}</span>
             </div>
           </div>
         </div>

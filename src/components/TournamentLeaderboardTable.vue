@@ -1,7 +1,7 @@
 <template>
-  <div class="bg-white border-2 border-border rounded-2xl p-5 shadow-sm">
+  <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-5 shadow-sm">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-bold text-foreground">{{ title }}</h3>
+      <h3 class="text-base sm:text-lg font-bold text-foreground">{{ title }}</h3>
       <span class="text-xs font-semibold text-muted-foreground">{{ rows.length }} Spieler</span>
     </div>
 
@@ -17,7 +17,7 @@
         </div>
         <div class="divide-y divide-border/70">
           <div
-            v-for="(row, index) in category.rows"
+            v-for="(row, index) in visibleRows(category)"
             :key="`${category.key}-${row.playerId}`"
             class="flex items-center justify-between gap-3 px-4 py-3"
           >
@@ -33,13 +33,28 @@
             </div>
           </div>
         </div>
+        <button
+          v-if="category.rows.length > DEFAULT_LIMIT"
+          type="button"
+          class="w-full px-4 py-2.5 text-xs font-bold text-primary bg-white border-t-2 border-border hover:bg-muted/30 transition-colors flex items-center justify-center gap-1.5"
+          @click="toggleExpanded(category.key)"
+        >
+          <template v-if="expanded[category.key]">
+            <i class="pi pi-chevron-up text-[10px]" />
+            Weniger anzeigen
+          </template>
+          <template v-else>
+            <i class="pi pi-chevron-down text-[10px]" />
+            +{{ category.rows.length - DEFAULT_LIMIT }} weitere
+          </template>
+        </button>
       </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 interface LeaderboardRow {
   playerId: string
@@ -57,10 +72,28 @@ interface LeaderboardRow {
   totalDarts: number
 }
 
+interface Category {
+  key: string
+  title: string
+  subtitle: string
+  rows: LeaderboardRow[]
+  value: (row: LeaderboardRow) => string
+  detail: (row: LeaderboardRow) => string
+}
+
 const props = defineProps<{
   title: string
   rows: LeaderboardRow[]
 }>()
+
+const DEFAULT_LIMIT = 5
+
+const expanded = ref<Record<string, boolean>>({})
+const toggleExpanded = (key: string) => {
+  expanded.value[key] = !expanded.value[key]
+}
+const visibleRows = (category: Category) =>
+  expanded.value[category.key] ? category.rows : category.rows.slice(0, DEFAULT_LIMIT)
 
 const byName = (a: LeaderboardRow, b: LeaderboardRow) => a.name.localeCompare(b.name, 'de-CH')
 const sortDesc = (selector: (row: LeaderboardRow) => number) =>
@@ -72,7 +105,7 @@ const sortBestLeg = () =>
     return valueA - valueB || byName(a, b)
   })
 
-const categories = computed(() => [
+const categories = computed<Category[]>(() => [
   {
     key: 'average',
     title: 'Average',
