@@ -39,13 +39,22 @@
             </span>
           </div>
         </div>
-        <button
-          @click="undo"
-          :disabled="game.turns.length === 0"
-          class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary disabled:opacity-30 active:scale-95 transition-all"
-        >
-          <i class="pi pi-undo text-lg" />
-        </button>
+        <div class="flex items-center gap-1 shrink-0">
+          <button
+            @click="toggleMute"
+            class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
+            :aria-label="muted ? 'Sound einschalten' : 'Sound ausschalten'"
+          >
+            <i :class="muted ? 'pi pi-volume-off' : 'pi pi-volume-up'" class="text-lg" />
+          </button>
+          <button
+            @click="undo"
+            :disabled="game.turns.length === 0"
+            class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary disabled:opacity-30 active:scale-95 transition-all"
+          >
+            <i class="pi pi-undo text-lg" />
+          </button>
+        </div>
       </div>
 
       <div class="flex-1 min-h-0 mx-auto w-full sm:max-w-[1200px] flex flex-col">
@@ -245,6 +254,16 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
+import {
+  initSounds,
+  isSoundsMuted,
+  playBustSound,
+  playCheckoutSound,
+  playClearSound,
+  playClickSound,
+  playMissSound,
+  setSoundsMuted
+} from '@/services/sounds'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore'
 import { calculateBasicStats, calculateMatchPlayerStats } from '@/domain/statsCalculator'
@@ -272,7 +291,19 @@ const currentThrowsTotal = computed(() =>
 
 onMounted(() => {
   game.ensureMatch()
+  initSounds()
+  muted.value = isSoundsMuted()
 })
+
+const muted = ref(false)
+const toggleMute = () => {
+  muted.value = !muted.value
+  setSoundsMuted(muted.value)
+  if (!muted.value) {
+    // Tiny click on the way back on so the user knows audio is back.
+    playClickSound()
+  }
+}
 
 const startingScore = computed(() => game.match?.startingScore ?? 501)
 const legLabel = computed(() => {
@@ -447,6 +478,11 @@ const handleDartScore = (score: number) => {
   const now = performance.now()
   if (now - lastDartInputAt < INPUT_COOLDOWN_MS) return
   lastDartInputAt = now
+  if (score === 0) {
+    playMissSound()
+  } else {
+    playClickSound()
+  }
   const multiplier = score === 25 && currentMultiplier.value === 3 ? 2 : currentMultiplier.value
   const newThrows = [...currentThrows.value, { score, multiplier }]
   currentThrows.value = newThrows
@@ -482,6 +518,7 @@ const submitIndividualTurn = (
 
 const clearIndividual = () => {
   if (isInputDisabled.value) return
+  playClearSound()
   currentThrows.value = []
   currentMultiplier.value = 1
 }
@@ -493,10 +530,12 @@ watch(
     if (!lastTurn) return
     if (lastTurn.bust) {
       showBust.value = true
+      playBustSound()
       setTimeout(() => (showBust.value = false), 1500)
     }
     if (lastTurn.checkoutHit) {
       showCheckout.value = true
+      playCheckoutSound()
       setTimeout(() => (showCheckout.value = false), 2000)
     }
   }

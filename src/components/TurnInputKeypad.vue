@@ -37,7 +37,7 @@
       <button
         class="bg-primary text-primary-foreground rounded-2xl text-lg sm:text-xl font-black active:scale-95 transition-transform disabled:opacity-40 shadow-lg leading-none"
         :disabled="disabled || !value"
-        @click="$emit('submit')"
+        @click="submit"
       >
         OK
       </button>
@@ -46,6 +46,8 @@
 </template>
 
 <script setup lang="ts">
+import { playClickSound, playClearSound, playOkSound } from '@/services/sounds'
+
 const props = defineProps<{ value: string; disabled?: boolean }>()
 const emit = defineEmits<{ (e: 'update:value', value: string): void; (e: 'submit'): void }>()
 
@@ -66,6 +68,7 @@ const appendDigit = (digit: number) => {
   if (props.value.length >= 3) return
   const nextValue = props.value === '0' ? String(digit) : `${props.value}${digit}`
   emit('update:value', nextValue)
+  playClickSound()
 }
 
 const clear = () => {
@@ -74,5 +77,12 @@ const clear = () => {
   if (now - lastInputAt < INPUT_COOLDOWN_MS) return
   lastInputAt = now
   emit('update:value', '')
+  playClearSound()
+}
+
+const submit = () => {
+  if (props.disabled || !props.value) return
+  emit('submit')
+  playOkSound()
 }
 </script>
