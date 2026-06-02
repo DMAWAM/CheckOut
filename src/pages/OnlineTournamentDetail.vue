@@ -130,9 +130,10 @@
             />
             <button
               @click="copyInvite"
-              class="px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold"
+              class="px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold transition-colors"
+              :class="inviteCopied ? '!bg-green-600' : ''"
             >
-              Kopieren
+              {{ inviteCopied ? 'Kopiert' : 'Kopieren' }}
             </button>
           </div>
           <p class="text-xs text-muted-foreground mt-2">
@@ -157,7 +158,6 @@
           <textarea
             v-model="newPlayersInput"
             rows="6"
-            placeholder="Max Mustermann&#10;Mike Beispiel&#10;&#10;Oder aus Excel:&#10;A	Christian Dick	Michel Tieche	Elias Wettstein	Anika Nobel&#10;B	Sven Anderegg	Gianluca Civelli	..."
             class="w-full px-4 py-3 border-2 border-border rounded-xl focus:border-primary focus:outline-none bg-background text-foreground"
           />
           <div class="flex flex-wrap items-center gap-3">
@@ -1173,9 +1173,16 @@ onUnmounted(() => {
   stopLivePolling()
 })
 
+const inviteCopied = ref(false)
+let inviteCopiedTimeout: ReturnType<typeof setTimeout> | null = null
 const copyInvite = async () => {
   if (!inviteCode.value) return
   await navigator.clipboard.writeText(inviteCode.value)
+  inviteCopied.value = true
+  if (inviteCopiedTimeout) clearTimeout(inviteCopiedTimeout)
+  inviteCopiedTimeout = setTimeout(() => {
+    inviteCopied.value = false
+  }, 1800)
 }
 
 const generateSchedule = async () => {
