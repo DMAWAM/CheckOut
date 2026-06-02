@@ -705,12 +705,21 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         const playerBName =
           this.players.find((player) => player.id === nextMatch.playerBId)?.name ?? 'Spieler B'
 
+        // BASE_URL is "/CheckOut/" on the GitHub Pages deployment but "/" in
+        // local dev. Without this prefix the push notification opened
+        // https://<domain>/tournaments/online/<id> on the host, which on
+        // GitHub Pages is just the 404 catch-all (the app actually lives
+        // under /CheckOut/).
+        const baseUrl = import.meta.env.BASE_URL ?? '/'
+        const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+        const tournamentUrl = `${cleanBase}tournaments/online/${tournamentId}`
+
         await this.sendPushToUsers({
           userIds: [nextMatch.playerAId, nextMatch.playerBId],
           tournamentId,
           title: `Dein Spiel steht an – ${tournamentName}`,
           body: `${playerAName} vs ${playerBName}. Bitte ans Board kommen.`,
-          url: `/tournaments/online/${tournamentId}`,
+          url: tournamentUrl,
           tag: `match-${nextMatch.id}`
         })
       } catch (err) {

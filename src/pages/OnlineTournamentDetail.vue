@@ -1292,17 +1292,17 @@ const loadTournament = async (id?: string) => {
   startTournamentPolling()
 }
 
-// Auto-refresh the tournament every 6s while the page is visible so that
-// status transitions ("bereit" -> "läuft" -> "beendet") propagate to all
-// participants without anyone having to reload. We skip a tick while the
-// live-match modal is open (its own 4s loop already calls
+// Auto-refresh the tournament every few seconds while the page is visible
+// so that status transitions ("bereit" -> "läuft" -> "beendet") propagate
+// to all participants without anyone having to reload. We skip a tick
+// while the live-match modal is open (its own 4s loop already calls
 // fetchTournamentDetail) and while the tab is hidden (battery).
-const TOURNAMENT_POLL_INTERVAL_MS = 6000
+const TOURNAMENT_POLL_INTERVAL_MS = 4000
 let tournamentPollTimer: number | null = null
 
 const refreshTournamentSilently = async () => {
   if (!tournamentId.value) return
-  if (document.visibilityState === 'hidden') return
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
   if (liveMatchId.value) return
   try {
     await onlineStore.fetchTournamentDetail(tournamentId.value)
@@ -1325,16 +1325,19 @@ const stopTournamentPolling = () => {
   }
 }
 
-const onVisibilityChange = () => {
-  if (document.visibilityState === 'visible') {
-    // Refresh immediately on return — the spectator may have been away
-    // for a while and the 6s tick would otherwise look sluggish.
-    void refreshTournamentSilently()
-  }
+// iOS PWAs are flaky about visibilitychange — sometimes it doesn't fire
+// when the app is foregrounded from the home screen. Listening for
+// pageshow + window focus too gives us belt-and-braces coverage.
+const refreshOnReturnToView = () => {
+  void refreshTournamentSilently()
 }
 
 if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', onVisibilityChange)
+  document.addEventListener('visibilitychange', refreshOnReturnToView)
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', refreshOnReturnToView)
+  window.addEventListener('pageshow', refreshOnReturnToView)
 }
 
 watch(
@@ -1349,7 +1352,11 @@ onUnmounted(() => {
   stopLivePolling()
   stopTournamentPolling()
   if (typeof document !== 'undefined') {
-    document.removeEventListener('visibilitychange', onVisibilityChange)
+    document.removeEventListener('visibilitychange', refreshOnReturnToView)
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', refreshOnReturnToView)
+    window.removeEventListener('pageshow', refreshOnReturnToView)
   }
 })
 
