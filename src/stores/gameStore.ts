@@ -17,6 +17,31 @@ interface PendingCheckout {
 }
 
 /**
+ * Run `fn` up to `attempts` times with exponential backoff. Used for the
+ * online recordMatchResult call so a transient network blip / RLS hiccup
+ * doesn't strand the tournament in "still in_progress" state on every
+ * other player's screen.
+ */
+const retryAsync = async <T>(
+  fn: () => Promise<T>,
+  opts: { attempts: number; baseDelayMs: number; label: string }
+): Promise<T | undefined> => {
+  let lastError: unknown
+  for (let attempt = 0; attempt < opts.attempts; attempt += 1) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      const delay = opts.baseDelayMs * Math.pow(2, attempt)
+      console.warn(`[${opts.label}] attempt ${attempt + 1} failed`, err, `retrying in ${delay}ms`)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+  console.error(`[${opts.label}] all retries failed`, lastError)
+  return undefined
+}
+
+/**
  * A match that should be capped at a declared number of legs ("fixed legs"),
  * regardless of who is winning. The canonical signal is `type: 'fixed_legs'`,
  * but `allowDraw` and `fixedLegs` are equally diagnostic (set only by the
@@ -510,18 +535,21 @@ export const useGameStore = defineStore('game', {
       }
       history.upsertMatch(summary)
       if (this.match.tournamentId) {
+        const tournamentId = this.match.tournamentId
+        const matchId = this.match.id
+        const payload = { matchId, tournamentId, stats: summary.stats }
         if (this.match.tournamentScope === 'online') {
-          onlineTournamentsStore.recordMatchResult(this.match.tournamentId, this.match.id, {
-            matchId: this.match.id,
-            tournamentId: this.match.tournamentId,
-            stats: summary.stats
-          })
+          // Fire-and-forget intentionally so the player sees the winner
+          // screen instantly, but with retry-with-backoff so a flaky
+          // network or a temporarily-failing RLS check doesn't leave the
+          // tournament stuck in "Fortsetzen" forever on everyone else's
+          // device.
+          void retryAsync(
+            () => onlineTournamentsStore.recordMatchResult(tournamentId, matchId, payload),
+            { attempts: 4, baseDelayMs: 800, label: 'recordMatchResult' }
+          )
         } else {
-          tournamentsStore.recordMatchResult(this.match.tournamentId, this.match.id, {
-            matchId: this.match.id,
-            tournamentId: this.match.tournamentId,
-            stats: summary.stats
-          })
+          tournamentsStore.recordMatchResult(tournamentId, matchId, payload)
         }
       }
     },
@@ -599,6 +627,7 @@ export const useGameStore = defineStore('game', {
       const local = loadLocalSnapshot(params.matchId)
       if (local) {
         this.applySnapshot(local)
+        this.reconcileAfterResume()
         return
       }
       if (params.tournamentScope === 'online') {
@@ -606,14 +635,37 @@ export const useGameStore = defineStore('game', {
         const snapshot = await onlineTournamentsStore.fetchLiveState(params.matchId)
         if (snapshot) {
           this.applySnapshot(snapshot as LiveMatchSnapshot)
+          this.reconcileAfterResume()
           return
         }
       }
       throw new Error('Kein gespeicherter Spielstand gefunden.')
     },
+    /**
+     * Called right after applySnapshot during a Fortsetzen flow. If the
+     * snapshot was already in the "finished" state when it was saved (which
+     * can happen if recordMatchResult's network call failed at the time the
+     * match actually ended), push it again now so the tournament view drops
+     * the stuck "Fortsetzen" button.
+     */
+    reconcileAfterResume() {
+      if (this.match?.status === 'finished' && this.match.tournamentId) {
+        this.saveMatchSummary()
+        // Now that the server has the final result, drop the live snapshot
+        // so spectators stop being offered the live-modal view.
+        this.clearLiveState()
+      }
+    },
     persistLiveState() {
       const snapshot = this.getSnapshot()
       if (!snapshot || !this.match) return
+      // Don't re-publish a snapshot after the match has been declared
+      // finished. applyTurn() unconditionally calls persistLiveState() at the
+      // end of its tick, even after finishMatch -> clearLiveState ran, which
+      // would otherwise race and resurrect the "live" snapshot on the server.
+      // That left the schedule showing "Fortsetzen" + the live modal
+      // alive even though the match was already over for the player.
+      if (this.match.status === 'finished') return
       saveLocalSnapshot(this.match.id, snapshot)
       if (this.match.tournamentScope === 'online') {
         const onlineTournamentsStore = useOnlineTournamentsStore()
