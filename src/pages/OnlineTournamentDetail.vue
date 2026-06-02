@@ -1266,6 +1266,7 @@ const deletePlayerTarget = ref<{ id: string; name: string } | null>(null)
 const loadTournament = async (id?: string) => {
   if (!id) return
   stopLivePolling()
+  stopTournamentPolling()
   scheduleError.value = ''
   groupAssignmentError.value = ''
   matchActionError.value = ''
@@ -1280,6 +1281,52 @@ const loadTournament = async (id?: string) => {
   } else {
     inviteCode.value = ''
   }
+  startTournamentPolling()
+}
+
+// Auto-refresh the tournament every 6s while the page is visible so that
+// status transitions ("bereit" -> "läuft" -> "beendet") propagate to all
+// participants without anyone having to reload. We skip a tick while the
+// live-match modal is open (its own 4s loop already calls
+// fetchTournamentDetail) and while the tab is hidden (battery).
+const TOURNAMENT_POLL_INTERVAL_MS = 6000
+let tournamentPollTimer: number | null = null
+
+const refreshTournamentSilently = async () => {
+  if (!tournamentId.value) return
+  if (document.visibilityState === 'hidden') return
+  if (liveMatchId.value) return
+  try {
+    await onlineStore.fetchTournamentDetail(tournamentId.value)
+  } catch (err) {
+    console.warn('tournament auto-refresh failed', err)
+  }
+}
+
+const startTournamentPolling = () => {
+  if (tournamentPollTimer) window.clearInterval(tournamentPollTimer)
+  tournamentPollTimer = window.setInterval(() => {
+    void refreshTournamentSilently()
+  }, TOURNAMENT_POLL_INTERVAL_MS)
+}
+
+const stopTournamentPolling = () => {
+  if (tournamentPollTimer) {
+    window.clearInterval(tournamentPollTimer)
+    tournamentPollTimer = null
+  }
+}
+
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    // Refresh immediately on return — the spectator may have been away
+    // for a while and the 6s tick would otherwise look sluggish.
+    void refreshTournamentSilently()
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', onVisibilityChange)
 }
 
 watch(
@@ -1292,6 +1339,10 @@ watch(
 
 onUnmounted(() => {
   stopLivePolling()
+  stopTournamentPolling()
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onVisibilityChange)
+  }
 })
 
 const inviteCopied = ref(false)
