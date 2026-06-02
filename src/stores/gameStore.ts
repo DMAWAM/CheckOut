@@ -430,12 +430,20 @@ export const useGameStore = defineStore('game', {
       const history = useMatchHistoryStore()
       const tournamentsStore = useTournamentsStore()
       const onlineTournamentsStore = useOnlineTournamentsStore()
+      // Count leg wins from the turn log instead of this.legs.filter(winnerId).
+      // turns.checkoutHit is the single source of truth: every successful
+      // checkout adds a checkout-hit turn AND it survives undo (an undone
+      // checkout is popped from this.turns). this.legs[i].winnerId can
+      // desync from this in edge cases (e.g. syncLegAfterUndo clearing the
+      // current leg's winnerId while an earlier checkout turn remains in
+      // this.turns), which is what caused a player with 3 visible checkouts
+      // to be saved with score 2:0.
       const legWinsByPlayer: Record<string, number> = {}
       let totalLegs = 0
-      this.legs.forEach((leg) => {
-        if (!leg.winnerId) return
+      this.turns.forEach((turn) => {
+        if (!turn.checkoutHit) return
         totalLegs += 1
-        legWinsByPlayer[leg.winnerId] = (legWinsByPlayer[leg.winnerId] ?? 0) + 1
+        legWinsByPlayer[turn.playerId] = (legWinsByPlayer[turn.playerId] ?? 0) + 1
       })
       const summary: MatchSummary = {
         id: this.match.id,
