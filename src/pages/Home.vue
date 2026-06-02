@@ -1,18 +1,18 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-20">
-    <div class="bg-white border-b-2 border-border px-6 py-8 shadow-sm">
+    <div class="bg-white border-b-2 border-border px-4 sm:px-6 py-6 sm:py-8 shadow-sm">
       <div class="flex items-center gap-3 mb-2">
-        <div class="w-12 h-12 bg-primary rounded-full flex items-center justify-center shadow-md">
+        <div class="w-12 h-12 bg-primary rounded-full flex items-center justify-center shadow-md shrink-0">
           <span class="text-primary-foreground text-xl">🎯</span>
         </div>
-        <div>
-          <h1 class="text-4xl font-bold text-foreground">CheckOut</h1>
+        <div class="min-w-0">
+          <h1 class="text-3xl sm:text-4xl font-bold text-foreground">CheckOut</h1>
           <p class="text-sm text-muted-foreground">Vereins-Scoring & Statistiken</p>
         </div>
       </div>
     </div>
 
-    <div class="px-6 py-8 space-y-4">
+    <div class="px-4 sm:px-6 py-6 sm:py-8 space-y-4">
       <RouterLink
         to="/new-game"
         class="w-full bg-primary text-primary-foreground rounded-2xl py-8 px-6 flex items-center justify-between shadow-lg active:scale-98 transition-all hover:shadow-xl"
@@ -48,7 +48,7 @@
       </div>
     </div>
 
-    <div class="px-6 py-4">
+    <div class="px-4 sm:px-6 py-4">
       <div class="bg-white border-2 border-primary/15 rounded-3xl p-6 shadow-lg">
         <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div class="flex items-center gap-2">
@@ -95,7 +95,7 @@
       </div>
     </div>
 
-    <div class="px-6 py-4">
+    <div class="px-4 sm:px-6 py-4">
       <div class="flex items-center gap-2 mb-4">
         <i class="pi pi-user text-muted-foreground" />
         <h2 class="text-xl font-bold text-foreground">Profil</h2>

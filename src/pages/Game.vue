@@ -1,11 +1,11 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background pb-6">
-    <div v-if="matchFinished" class="min-h-screen flex flex-col items-center justify-center px-6 py-12">
-      <div class="w-24 h-24 bg-dart-gold rounded-full flex items-center justify-center mb-6 shadow-xl animate-bounce">
+    <div v-if="matchFinished" class="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 py-10 sm:py-12">
+      <div class="w-20 h-20 sm:w-24 sm:h-24 bg-dart-gold rounded-full flex items-center justify-center mb-6 shadow-xl animate-bounce">
         <i class="pi pi-trophy text-4xl text-white" />
       </div>
-      <h1 class="text-5xl font-bold mb-3 text-foreground">{{ winnerName ? 'Gewonnen!' : 'Unentschieden' }}</h1>
-      <p class="text-3xl text-primary font-bold mb-8">{{ winnerName || matchScoreLabel }}</p>
+      <h1 class="text-4xl sm:text-5xl font-bold mb-3 text-foreground text-center">{{ winnerName ? 'Gewonnen!' : 'Unentschieden' }}</h1>
+      <p class="text-2xl sm:text-3xl text-primary font-bold mb-8 text-center break-words max-w-full">{{ winnerName || matchScoreLabel }}</p>
 
       <div class="grid gap-4 w-full max-w-3xl mb-10">
         <MatchPlayerStatsCard v-for="stat in matchStats" :key="stat.playerId" :stat="stat" />
@@ -20,20 +20,20 @@
     </div>
 
     <div v-else>
-      <div class="bg-white border-b-2 border-border px-4 py-3 flex items-center justify-between shadow-sm">
+      <div class="bg-white border-b-2 border-border px-3 sm:px-4 py-3 flex items-center justify-between gap-2 shadow-sm">
         <button
           @click="router.push('/')"
-          class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
+          class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
         >
           <i class="pi pi-arrow-left text-lg" />
         </button>
-        <div class="text-center flex-1">
-          <div class="text-xs font-semibold text-muted-foreground">{{ legLabel }}</div>
-          <div class="text-xs font-bold text-foreground mt-1 flex items-center justify-center gap-4 flex-wrap">
-            <span v-for="player in game.players" :key="player.id" class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full" :class="player.id === game.activePlayerId ? 'bg-primary' : 'bg-dart-gold'" />
-              {{ player.name }}
-              <span class="text-muted-foreground font-semibold">
+        <div class="text-center flex-1 min-w-0">
+          <div class="text-[11px] sm:text-xs font-semibold text-muted-foreground truncate">{{ legLabel }}</div>
+          <div class="text-[11px] sm:text-xs font-bold text-foreground mt-1 flex items-center justify-center gap-2 sm:gap-4 flex-wrap">
+            <span v-for="player in game.players" :key="player.id" class="flex items-center gap-1.5 sm:gap-2 max-w-[45vw]">
+              <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 shrink-0 rounded-full" :class="player.id === game.activePlayerId ? 'bg-primary' : 'bg-dart-gold'" />
+              <span class="truncate">{{ player.name }}</span>
+              <span class="text-muted-foreground font-semibold shrink-0">
                 {{ formatLegSet(player.id) }}
               </span>
             </span>
@@ -42,13 +42,13 @@
         <button
           @click="undo"
           :disabled="game.turns.length === 0"
-          class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary disabled:opacity-30 active:scale-95 transition-all"
+          class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary disabled:opacity-30 active:scale-95 transition-all"
         >
           <i class="pi pi-undo text-lg" />
         </button>
       </div>
 
-      <div class="mx-auto w-full max-w-[1200px]">
+      <div class="mx-auto w-full sm:max-w-[1200px]">
       <Scoreboard
         :players="game.players"
         :scores="game.scores"
@@ -150,35 +150,35 @@
           </div>
         </div>
 
-        <div class="px-4 mb-3">
-          <div class="grid grid-cols-5 gap-2">
+        <div class="px-3 sm:px-4 mb-3">
+          <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
             <button
               v-for="num in dartNumbers"
               :key="num"
               @click="handleDartScore(num)"
               :disabled="currentThrows.length >= 3 || isInputDisabled"
-              class="bg-white border-2 border-border rounded-xl py-4 text-lg font-black text-foreground active:scale-95 transition-all hover:shadow-md hover:border-primary disabled:opacity-40"
+              class="bg-white border-2 border-border rounded-xl py-3 sm:py-4 text-base sm:text-lg font-black text-foreground active:scale-95 transition-all hover:shadow-md hover:border-primary disabled:opacity-40"
             >
               {{ num }}
             </button>
             <button
               @click="handleDartScore(25)"
               :disabled="currentThrows.length >= 3 || isInputDisabled"
-              class="col-span-2 bg-white border-2 border-border rounded-xl py-4 text-lg font-black text-foreground active:scale-95 transition-all hover:shadow-md hover:border-primary disabled:opacity-40"
+              class="col-span-2 bg-white border-2 border-border rounded-xl py-3 sm:py-4 text-base sm:text-lg font-black text-foreground active:scale-95 transition-all hover:shadow-md hover:border-primary disabled:opacity-40"
             >
               Bull
             </button>
             <button
               @click="handleDartScore(0)"
               :disabled="currentThrows.length >= 3 || isInputDisabled"
-              class="col-span-2 bg-white border-2 border-border rounded-xl py-4 text-sm font-black text-muted-foreground active:scale-95 transition-all hover:shadow-md disabled:opacity-40"
+              class="col-span-2 bg-white border-2 border-border rounded-xl py-3 sm:py-4 text-sm font-black text-muted-foreground active:scale-95 transition-all hover:shadow-md disabled:opacity-40"
             >
               Miss
             </button>
             <button
               @click="clearIndividual"
               :disabled="isInputDisabled"
-              class="bg-destructive text-destructive-foreground rounded-xl py-4 text-sm font-black active:scale-95 transition-all shadow-md"
+              class="bg-destructive text-destructive-foreground rounded-xl py-3 sm:py-4 text-sm font-black active:scale-95 transition-all shadow-md"
             >
               Clear
             </button>
@@ -193,26 +193,26 @@
       <TurnHistory :turns="recentTurns" :players="game.players" />
     </div>
 
-    <div v-if="showBust" class="fixed inset-0 bg-destructive/95 flex items-center justify-center z-50 animate-in fade-in duration-300">
+    <div v-if="showBust" class="fixed inset-0 bg-destructive/95 flex items-center justify-center z-50 animate-in fade-in duration-300 px-6" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
       <div class="text-center">
-        <div class="w-28 h-28 bg-white rounded-full flex items-center justify-center mx-auto mb-6">
+        <div class="w-24 h-24 sm:w-28 sm:h-28 bg-white rounded-full flex items-center justify-center mx-auto mb-6">
           <i class="pi pi-exclamation-circle text-5xl text-destructive" />
         </div>
-        <div class="text-7xl font-black text-white">BUST!</div>
+        <div class="text-6xl sm:text-7xl font-black text-white">BUST!</div>
       </div>
     </div>
 
-    <div v-if="showCheckout" class="fixed inset-0 bg-primary/95 flex items-center justify-center z-50 animate-in fade-in duration-300">
+    <div v-if="showCheckout" class="fixed inset-0 bg-primary/95 flex items-center justify-center z-50 animate-in fade-in duration-300 px-6" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
       <div class="text-center">
-        <div class="w-28 h-28 bg-white rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+        <div class="w-24 h-24 sm:w-28 sm:h-28 bg-white rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
           <i class="pi pi-trophy text-5xl text-primary" />
         </div>
-        <div class="text-7xl font-black text-white">CHECKOUT!</div>
+        <div class="text-6xl sm:text-7xl font-black text-white">CHECKOUT!</div>
       </div>
     </div>
 
-    <div v-if="showCheckoutDialog" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div class="bg-white border-2 border-border rounded-2xl p-6 w-[90%] max-w-sm shadow-xl">
+    <div v-if="showCheckoutDialog" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
+      <div class="bg-white border-2 border-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
         <h3 class="text-lg font-bold text-foreground mb-4">Double-Out bestätigen</h3>
         <p class="text-sm text-muted-foreground mb-6">Checkout mit Double getroffen?</p>
         <div class="grid gap-3">

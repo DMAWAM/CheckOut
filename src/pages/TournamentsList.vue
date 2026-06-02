@@ -1,21 +1,21 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-20">
-    <div class="bg-white border-b-2 border-border px-6 py-6 shadow-sm">
-      <div class="flex items-center gap-4 mb-4">
+    <div class="bg-white border-b-2 border-border px-4 sm:px-6 py-5 sm:py-6 shadow-sm">
+      <div class="flex items-center gap-3 sm:gap-4 mb-4">
         <button
           @click="router.push('/')"
-          class="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
+          class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl hover:bg-secondary active:scale-95 transition-all"
         >
           <i class="pi pi-arrow-left text-xl" />
         </button>
-        <div>
+        <div class="min-w-0 flex-1">
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-              <i class="pi pi-trophy text-2xl text-primary" />
+            <div class="w-11 h-11 sm:w-12 sm:h-12 shrink-0 bg-primary/10 rounded-full flex items-center justify-center">
+              <i class="pi pi-trophy text-xl sm:text-2xl text-primary" />
             </div>
-            <div>
-              <h1 class="text-3xl font-bold text-foreground">Turniere</h1>
-              <p class="text-sm text-muted-foreground">Round Robin & Tabellen</p>
+            <div class="min-w-0">
+              <h1 class="text-2xl sm:text-3xl font-bold text-foreground">Turniere</h1>
+              <p class="text-xs sm:text-sm text-muted-foreground">Round Robin & Tabellen</p>
             </div>
           </div>
         </div>
@@ -30,7 +30,7 @@
       </button>
     </div>
 
-    <div class="px-6 py-8">
+    <div class="px-4 sm:px-6 py-6 sm:py-8">
       <div class="bg-white border-2 border-border rounded-2xl p-4 mb-6">
         <div class="text-sm font-semibold text-foreground mb-3">Filter</div>
         <div class="grid grid-cols-3 gap-2">

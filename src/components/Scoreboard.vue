@@ -1,21 +1,21 @@
 <template>
-  <div class="grid grid-cols-2 gap-4 p-4">
+  <div class="grid grid-cols-2 gap-2 sm:gap-4 p-3 sm:p-4">
     <div
       v-for="player in players"
       :key="player.id"
-      class="bg-white rounded-2xl p-4 transition-all relative"
+      class="bg-white rounded-2xl p-3 sm:p-4 transition-all relative min-w-0"
       :class="player.id === activePlayerId
-        ? 'border-4 border-primary shadow-2xl shadow-primary/30 scale-105'
+        ? 'border-4 border-primary shadow-2xl shadow-primary/30 sm:scale-105'
         : 'border-2 border-border'"
     >
-      <div class="absolute top-3 right-3 bg-muted px-2 py-1 rounded-md text-xs font-bold text-foreground">
+      <div class="absolute top-3 right-3 bg-muted px-2 py-1 rounded-md text-[10px] sm:text-xs font-bold text-foreground">
         {{ scores[player.id] ?? 0 }}
       </div>
-      <div class="text-xs font-bold text-muted-foreground mb-2 truncate uppercase tracking-wide">
+      <div class="text-[11px] sm:text-xs font-bold text-muted-foreground mb-2 truncate uppercase tracking-wide pr-12">
         {{ player.name }}
       </div>
       <div
-        class="text-7xl font-black mb-2 leading-none"
+        class="text-5xl sm:text-7xl font-black mb-2 leading-none tabular-nums"
         :class="player.id === activePlayerId ? 'text-primary' : 'text-dart-navy'"
       >
         {{ scores[player.id] ?? 0 }}
