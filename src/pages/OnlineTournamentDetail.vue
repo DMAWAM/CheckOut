@@ -108,6 +108,7 @@
           :group-count="groupCount"
           :max-groups="maxGroupCount"
           :can-edit="isAdmin"
+          :can-delete-players="isAdmin && !scheduleGenerated"
           :locked="scheduleGenerated"
           :schedule-generated="scheduleGenerated"
           :show-generate-button="isAdmin"
@@ -116,6 +117,7 @@
           @bulk-assign="bulkAssignPlayerGroups"
           @group-count="changeGroupCount"
           @generate="generateSchedule"
+          @delete-player="confirmDeleteTournamentPlayer"
         />
 
         <div v-if="isAdmin" class="bg-white border-2 border-border rounded-2xl p-6">
@@ -193,6 +195,13 @@
                   @click="copyLogin(entry)"
                 >
                   Login-Daten kopieren
+                </button>
+                <button
+                  v-if="isAdmin && !scheduleGenerated"
+                  class="ml-3 text-xs font-bold text-destructive"
+                  @click="confirmDeleteTournamentPlayer(entry.playerId)"
+                >
+                  Spieler entfernen
                 </button>
               </div>
               <div class="w-28 h-28 bg-white border-2 border-border rounded-xl flex items-center justify-center">
@@ -479,11 +488,21 @@
       @confirm="handleDelete"
       @cancel="showDeleteDialog = false"
     />
+    <ConfirmDialog
+      :open="Boolean(deletePlayerTarget)"
+      title="Spieler entfernen"
+      :message="deletePlayerMessage"
+      confirm-label="Entfernen"
+      cancel-label="Abbrechen"
+      tone="danger"
+      @confirm="handleDeletePlayer"
+      @cancel="deletePlayerTarget = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -500,6 +519,7 @@ import type { MatchFormat, TournamentMatch } from '@/domain/models'
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { resolveMatchDoubleOut, resolveMatchFormat } from '@/domain/tournamentFormat'
+import { normalizeImportedName, parseGroupedPlayerImport } from '@/domain/groupImport'
 
 const router = useRouter()
 const route = useRoute()
@@ -681,7 +701,25 @@ const finishedMatchesDetailed = computed<FinishedMatchEntry[]>(() => {
     .map((match) => {
       const result = results.value.find((entry) => entry.matchId === match.id)
       if (!result) return null
-      return { match, stats: result.stats as MatchPlayerSummary[] }
+      const stats = result.stats.map((stat) => ({
+        ...stat,
+        average: stat.average ?? 0,
+        checkoutRate: stat.checkoutRate ?? 0,
+        checkoutAttempts: stat.checkoutAttempts ?? 0,
+        checkoutHits: stat.checkoutHits ?? 0,
+        doubleDarts: stat.doubleDarts ?? 0,
+        count100Plus: stat.count100Plus ?? 0,
+        count140Plus: stat.count140Plus ?? 0,
+        count180: stat.count180 ?? 0,
+        totalDarts: stat.totalDarts ?? 0,
+        totalPoints: stat.totalPoints ?? 0,
+        highestScore: stat.highestScore ?? 0,
+        highestCheckout: stat.highestCheckout ?? 0,
+        bestLegDarts: stat.bestLegDarts ?? 0,
+        legsWon: stat.legsWon ?? 0,
+        legsLost: stat.legsLost ?? 0
+      }))
+      return { match, stats }
     })
     .filter((entry): entry is FinishedMatchEntry => Boolean(entry))
     .sort((a, b) => {
@@ -709,7 +747,9 @@ const selectedMatchStats = computed(() => {
     count180: stat.count180 ?? 0,
     totalDarts: stat.totalDarts ?? 0,
     totalPoints: stat.totalPoints ?? 0,
+    highestScore: stat.highestScore ?? 0,
     highestCheckout: stat.highestCheckout ?? 0,
+    bestLegDarts: stat.bestLegDarts ?? 0,
     legsWon: stat.legsWon ?? 0,
     legsLost: stat.legsLost ?? 0
   }))
@@ -969,16 +1009,34 @@ const newPlayersInput = ref('')
 const generateError = ref('')
 const generateInfo = ref('')
 const qrMap = ref<Record<string, string>>({})
+const deletePlayerTarget = ref<{ id: string; name: string } | null>(null)
 
-onMounted(async () => {
-  if (!tournamentId.value) return
-  await onlineStore.fetchTournamentDetail(tournamentId.value)
-  if (isAdmin.value && tournamentId.value) {
-    const code = await onlineStore.getOrCreateInvite(tournamentId.value)
+const loadTournament = async (id?: string) => {
+  if (!id) return
+  stopLivePolling()
+  scheduleError.value = ''
+  groupAssignmentError.value = ''
+  matchActionError.value = ''
+  generateError.value = ''
+  generateInfo.value = ''
+  deletePlayerTarget.value = null
+  await onlineStore.fetchTournamentDetail(id)
+  if (isAdmin.value) {
+    const code = await onlineStore.getOrCreateInvite(id)
     inviteCode.value = code ?? ''
-    await onlineStore.fetchLoginCodes(tournamentId.value)
+    await onlineStore.fetchLoginCodes(id)
+  } else {
+    inviteCode.value = ''
   }
-})
+}
+
+watch(
+  () => tournamentId.value,
+  (id) => {
+    void loadTournament(id)
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
   stopLivePolling()
@@ -1069,59 +1127,18 @@ watch(
   { immediate: true }
 )
 
-const normalizeImportedName = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-
-const groupLabelToIndex = (label: string) => {
-  const normalized = label.trim().toUpperCase()
-  if (!/^[A-Z]{1,2}$/.test(normalized)) return undefined
-  return normalized.split('').reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1
-}
-
-const splitImportLine = (line: string) => {
-  if (line.includes('\t')) return line.split('\t')
-  return line.replace(':', ';').split(/[;,]/)
-}
-
 const parsePlayerImport = () => {
-  const names: string[] = []
-  const assignments: Array<{ name: string; groupIndex: number }> = []
-  const seenNames = new Set<string>()
-  let requiredGroupCount = groupCount.value
-
-  const addName = (name: string, groupIndex?: number) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    const normalized = normalizeImportedName(trimmed)
-    if (!seenNames.has(normalized)) {
-      names.push(trimmed)
-      seenNames.add(normalized)
-    }
-    if (groupIndex !== undefined) {
-      assignments.push({ name: trimmed, groupIndex })
-    }
-  }
-
-  newPlayersInput.value.split(/\r?\n/).forEach((rawLine) => {
-    const line = rawLine.trim()
-    if (!line) return
-    const parts = splitImportLine(line).map((value) => value.trim()).filter(Boolean)
-    if (parts.length === 0) return
-    const groupIndex = parts.length > 1 ? groupLabelToIndex(parts[0]) : undefined
-    if (groupIndex !== undefined && groupIndex >= 0 && groupIndex < maxGroupCount.value) {
-      requiredGroupCount = Math.max(requiredGroupCount, groupIndex + 1)
-      parts.slice(1).forEach((name) => addName(name, groupIndex))
-      return
-    }
-    parts.forEach((name) => addName(name))
+  const parsed = parseGroupedPlayerImport(newPlayersInput.value, {
+    maxGroupCount: maxGroupCount.value,
+    initialGroupCount: groupCount.value
   })
-
-  return { names, assignments, requiredGroupCount }
+  const existingByName = new Map<string, string>()
+  players.value.forEach((player) => {
+    const key = normalizeImportedName(player.name)
+    if (!existingByName.has(key)) existingByName.set(key, player.id)
+  })
+  const namesToCreate = parsed.names.filter((name) => !existingByName.has(normalizeImportedName(name)))
+  return { ...parsed, namesToCreate }
 }
 
 const generatePlayerLogins = async () => {
@@ -1134,14 +1151,23 @@ const generatePlayerLogins = async () => {
     return
   }
   try {
-    const codes = await onlineStore.generateLoginCodes(tournamentId.value, imported.names)
+    let createdCount = 0
+    if (imported.namesToCreate.length > 0) {
+      const codes = await onlineStore.generateLoginCodes(tournamentId.value, imported.namesToCreate)
+      createdCount = codes.length
+    } else {
+      await onlineStore.fetchTournamentDetail(tournamentId.value)
+      await onlineStore.fetchLoginCodes(tournamentId.value)
+    }
     if (imported.assignments.length > 0) {
       if (imported.requiredGroupCount !== groupCount.value) {
         await onlineStore.setTournamentGroupCount(tournamentId.value, imported.requiredGroupCount)
       }
-      const playersByName = new Map(
-        onlineStore.players.map((player) => [normalizeImportedName(player.name), player.id])
-      )
+      const playersByName = new Map<string, string>()
+      onlineStore.players.forEach((player) => {
+        const key = normalizeImportedName(player.name)
+        if (!playersByName.has(key)) playersByName.set(key, player.id)
+      })
       for (const assignment of imported.assignments) {
         const playerId = playersByName.get(normalizeImportedName(assignment.name))
         if (playerId) {
@@ -1149,9 +1175,14 @@ const generatePlayerLogins = async () => {
         }
       }
     }
-    generateInfo.value = `${codes.length} Logins erstellt${imported.assignments.length ? ' und Gruppen zugeteilt' : ''}.`
+    await onlineStore.fetchTournamentDetail(tournamentId.value)
+    await onlineStore.fetchLoginCodes(tournamentId.value)
+    generateInfo.value =
+      `${createdCount} neue Logins erstellt` +
+      `${imported.names.length - imported.namesToCreate.length ? `, ${imported.names.length - imported.namesToCreate.length} bestehende Spieler erkannt` : ''}` +
+      `${imported.assignments.length ? ' und Gruppen zugeteilt' : ''}.`
     newPlayersInput.value = ''
-    await buildQrCodes(codes)
+    await buildQrCodes(loginCodes.value)
   } catch (err) {
     generateError.value = (err as Error).message ?? 'Konnte keine Logins erstellen.'
   }
@@ -1219,6 +1250,30 @@ const handleDelete = async () => {
     router.push('/tournaments')
   } catch (err) {
     deleteError.value = (err as Error).message ?? 'Turnier konnte nicht gelöscht werden.'
+  }
+}
+
+const deletePlayerMessage = computed(() => {
+  if (!deletePlayerTarget.value) return ''
+  return `Willst du "${deletePlayerTarget.value.name}" wirklich aus diesem Turnier entfernen? Der Login-Code wird ebenfalls aus der Turnierliste entfernt.`
+})
+
+const confirmDeleteTournamentPlayer = (playerId: string) => {
+  const player = players.value.find((entry) => entry.id === playerId)
+  if (!player) return
+  generateError.value = ''
+  groupAssignmentError.value = ''
+  deletePlayerTarget.value = { id: player.id, name: player.name }
+}
+
+const handleDeletePlayer = async () => {
+  if (!tournamentId.value || !deletePlayerTarget.value) return
+  try {
+    await onlineStore.removeTournamentPlayer(tournamentId.value, deletePlayerTarget.value.id)
+    deletePlayerTarget.value = null
+    await buildQrCodes(loginCodes.value)
+  } catch (err) {
+    groupAssignmentError.value = (err as Error).message ?? 'Spieler konnte nicht entfernt werden.'
   }
 }
 

@@ -22,7 +22,9 @@ export interface MatchPlayerStats {
   count180: number
   totalDarts: number
   totalPoints: number
+  highestScore: number
   highestCheckout: number
+  bestLegDarts: number
 }
 
 export const calculateBasicStats = (turns: Turn[]): BasicStats => {
@@ -61,7 +63,17 @@ export const calculateMatchPlayerStats = (turns: Turn[]): MatchPlayerStats => {
   const count180 = turns.filter((turn) => !turn.bust && turn.points === 180).length
   const count140Plus = turns.filter((turn) => !turn.bust && turn.points >= 140).length
   const count100Plus = turns.filter((turn) => !turn.bust && turn.points >= 100).length
+  const highestScore = turns.reduce((max, turn) => Math.max(max, turn.bust ? 0 : turn.points), 0)
   const highestCheckout = turns.reduce((max, turn) => Math.max(max, turn.checkoutValue ?? 0), 0)
+  const dartsByLeg = turns.reduce<Record<string, number>>((acc, turn) => {
+    acc[turn.legId] = (acc[turn.legId] ?? 0) + turn.dartsThrown
+    return acc
+  }, {})
+  const wonLegDarts = turns
+    .filter((turn) => turn.checkoutHit)
+    .map((turn) => dartsByLeg[turn.legId] ?? 0)
+    .filter((darts) => darts > 0)
+  const bestLegDarts = wonLegDarts.length === 0 ? 0 : Math.min(...wonLegDarts)
 
   return {
     average,
@@ -74,6 +86,8 @@ export const calculateMatchPlayerStats = (turns: Turn[]): MatchPlayerStats => {
     count180,
     totalDarts,
     totalPoints,
-    highestCheckout
+    highestScore,
+    highestCheckout,
+    bestLegDarts
   }
 }

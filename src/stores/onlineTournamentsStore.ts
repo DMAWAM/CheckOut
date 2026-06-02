@@ -104,7 +104,10 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         phase: 'all'
       })
     },
-    leaderboards: (state) => calculateLeaderboardsFromData(state.results)
+    leaderboards: (state) => calculateLeaderboardsFromData(
+      state.results,
+      state.players.map((player) => ({ playerId: player.id, name: player.name }))
+    )
   },
   actions: {
     async fetchMyTournaments() {
@@ -225,6 +228,14 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
     },
     async fetchTournamentDetail(tournamentId: string) {
       this.loading = true
+      if (this.currentTournament?.id !== tournamentId) {
+        this.currentTournament = null
+        this.players = []
+        this.matches = []
+        this.results = []
+        this.loginCodes = []
+        this.inviteCode = null
+      }
       const { data: tournament, error: tournamentError } = await supabase
         .from('tournaments')
         .select('*')
@@ -406,11 +417,10 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
         throw new Error(text || `Edge Function Error (${response.status})`)
       }
       const data = await response.json()
-      if (data?.logins) {
-        this.loginCodes = data.logins
-      }
+      const createdLogins = (data?.logins ?? []) as Array<{ playerId: string; name: string; username: string; code: string }>
       await this.fetchTournamentDetail(tournamentId)
-      return this.loginCodes
+      await this.fetchLoginCodes(tournamentId)
+      return createdLogins
     },
     async generateSchedule() {
       if (!this.currentTournament) return
@@ -576,6 +586,43 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
           ? { ...player, groupIndex: normalizedGroupIndex ?? undefined }
           : player
       ))
+    },
+    async removeTournamentPlayer(tournamentId: string, playerId: string) {
+      const auth = useAuthStore()
+      if (!auth.session?.user) {
+        throw new Error('Bitte zuerst einloggen')
+      }
+      if (!this.currentTournament || this.currentTournament.id !== tournamentId) return
+      if (this.currentTournament.createdBy !== auth.session.user.id) {
+        throw new Error('Nur der Turnier-Admin kann Spieler entfernen.')
+      }
+      if (this.currentTournament.createdBy === playerId) {
+        throw new Error('Der Turnier-Ersteller kann nicht aus dem Turnier entfernt werden.')
+      }
+      const hasMatches = this.matches.some(
+        (match) => match.playerAId === playerId || match.playerBId === playerId
+      )
+      if (hasMatches) {
+        throw new Error('Spieler können nur entfernt werden, solange der Spielplan noch nicht erstellt wurde.')
+      }
+      const { error: codeError } = await supabase
+        .from('tournament_login_codes')
+        .delete()
+        .eq('tournament_id', tournamentId)
+        .eq('player_id', playerId)
+      if (codeError) {
+        throw new Error(codeError.message)
+      }
+      const { error } = await supabase
+        .from('tournament_players')
+        .delete()
+        .eq('tournament_id', tournamentId)
+        .eq('player_id', playerId)
+      if (error) {
+        throw new Error(error.message)
+      }
+      this.players = this.players.filter((player) => player.id !== playerId)
+      this.loginCodes = this.loginCodes.filter((entry) => entry.playerId !== playerId)
     },
     async markMatchInProgress(matchId: string) {
       await supabase

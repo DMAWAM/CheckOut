@@ -261,6 +261,11 @@ to authenticated with check (
     and t.created_by = auth.uid()
   )
 );
+drop policy if exists "tournament_players_delete_admin" on tournament_players;
+create policy "tournament_players_delete_admin" on tournament_players for delete
+to authenticated using (
+  public.is_tournament_admin(tournament_players.tournament_id)
+);
 
 -- Invites: only creator can manage
 create policy "invites_read" on tournament_invites for select
@@ -372,6 +377,11 @@ to authenticated using (
 );
 create policy "login_codes_insert" on tournament_login_codes for insert
 to authenticated with check (
+  public.is_tournament_admin(tournament_login_codes.tournament_id)
+);
+drop policy if exists "login_codes_delete" on tournament_login_codes;
+create policy "login_codes_delete" on tournament_login_codes for delete
+to authenticated using (
   public.is_tournament_admin(tournament_login_codes.tournament_id)
 );
 

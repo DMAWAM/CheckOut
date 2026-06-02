@@ -121,7 +121,9 @@ export interface TournamentMatchResult {
     count180: number
     totalDarts: number
     totalPoints: number
+    highestScore?: number
     highestCheckout: number
+    bestLegDarts?: number
     legsWon: number
     legsLost: number
   }>

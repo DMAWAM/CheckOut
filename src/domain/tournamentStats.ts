@@ -28,7 +28,9 @@ export interface LeaderboardRow {
   count180: number
   totalDarts: number
   totalPoints: number
+  highestScore: number
   highestCheckout: number
+  bestLegDarts: number
   isWinner: boolean
 }
 
@@ -144,8 +146,32 @@ export const calculateStandingsFromData = (params: {
     )
 }
 
-export const calculateLeaderboardsFromData = (results: TournamentMatchResult[]): LeaderboardRow[] => {
+export const calculateLeaderboardsFromData = (
+  results: TournamentMatchResult[],
+  players: Array<{ playerId: string; name: string }> = []
+): LeaderboardRow[] => {
   const totals: Record<string, LeaderboardRow> = {}
+
+  players.forEach((player) => {
+    totals[player.playerId] = {
+      playerId: player.playerId,
+      name: player.name,
+      average: 0,
+      checkoutRate: 0,
+      checkoutAttempts: 0,
+      checkoutHits: 0,
+      doubleDarts: 0,
+      count100Plus: 0,
+      count140Plus: 0,
+      count180: 0,
+      totalDarts: 0,
+      totalPoints: 0,
+      highestScore: 0,
+      highestCheckout: 0,
+      bestLegDarts: 0,
+      isWinner: false
+    }
+  })
 
   results.forEach((entry) => {
     entry.stats.forEach((stat) => {
@@ -162,7 +188,9 @@ export const calculateLeaderboardsFromData = (results: TournamentMatchResult[]):
           count180: stat.count180 ?? 0,
           totalDarts: stat.totalDarts ?? 0,
           totalPoints: stat.totalPoints ?? 0,
+          highestScore: stat.highestScore ?? 0,
           highestCheckout: stat.highestCheckout ?? 0,
+          bestLegDarts: stat.bestLegDarts ?? 0,
           isWinner: false
         }
         return
@@ -176,7 +204,13 @@ export const calculateLeaderboardsFromData = (results: TournamentMatchResult[]):
       current.count180 += stat.count180 ?? 0
       current.totalDarts += stat.totalDarts ?? 0
       current.totalPoints += stat.totalPoints ?? 0
+      current.highestScore = Math.max(current.highestScore, stat.highestScore ?? 0)
       current.highestCheckout = Math.max(current.highestCheckout, stat.highestCheckout ?? 0)
+      const bestLegDarts = stat.bestLegDarts ?? 0
+      if (bestLegDarts > 0) {
+        current.bestLegDarts =
+          current.bestLegDarts === 0 ? bestLegDarts : Math.min(current.bestLegDarts, bestLegDarts)
+      }
     })
   })
 

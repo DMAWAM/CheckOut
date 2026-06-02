@@ -474,7 +474,9 @@ const finishedMatchesDetailed = computed<FinishedMatchEntry[]>(() => {
         count180: stat.count180 ?? 0,
         totalDarts: stat.totalDarts ?? 0,
         totalPoints: stat.totalPoints ?? 0,
+        highestScore: stat.highestScore ?? 0,
         highestCheckout: stat.highestCheckout ?? 0,
+        bestLegDarts: stat.bestLegDarts ?? 0,
         legsWon: stat.legsWon ?? 0,
         legsLost: stat.legsLost ?? 0
       }))
@@ -506,7 +508,9 @@ const selectedMatchStats = computed(() => {
     count180: stat.count180 ?? 0,
     totalDarts: stat.totalDarts ?? 0,
     totalPoints: stat.totalPoints ?? 0,
+    highestScore: stat.highestScore ?? 0,
     highestCheckout: stat.highestCheckout ?? 0,
+    bestLegDarts: stat.bestLegDarts ?? 0,
     legsWon: stat.legsWon ?? 0,
     legsLost: stat.legsLost ?? 0
   }))
@@ -572,7 +576,12 @@ const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
 const maxGroupCount = computed(() => Math.max(1, Math.floor(playerList.value.length / 2)))
 const groupStandings = computed(() => tournamentsStore.calculateStandings(tournamentId.value, 'round_robin'))
 const finalStandings = computed(() => tournamentsStore.calculateStandings(tournamentId.value, 'all'))
-const leaderboard = computed(() => tournamentsStore.calculateLeaderboards(tournamentId.value))
+const leaderboard = computed(() =>
+  tournamentsStore.calculateLeaderboards(
+    tournamentId.value,
+    playerList.value.map((player) => ({ playerId: player.id, name: player.name }))
+  )
+)
 const qualifierCount = computed(() => (tournament.value?.mode === 'combined' ? 2 : 0))
 
 const groupLabel = (index: number) => String.fromCharCode(65 + index)

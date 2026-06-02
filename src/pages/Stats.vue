@@ -213,7 +213,9 @@ const emptyStats = (playerId: string, name: string): MatchPlayerSummary => ({
   count180: 0,
   totalDarts: 0,
   totalPoints: 0,
-  highestCheckout: 0
+  highestScore: 0,
+  highestCheckout: 0,
+  bestLegDarts: 0
 })
 
 const mergeStats = (target: MatchPlayerSummary, raw: any) => {
@@ -225,7 +227,12 @@ const mergeStats = (target: MatchPlayerSummary, raw: any) => {
   target.count100Plus += numberValue(raw.count100Plus ?? raw.count_100_plus)
   target.count140Plus += numberValue(raw.count140Plus ?? raw.count_140_plus)
   target.count180 += numberValue(raw.count180 ?? raw.count_180)
+  target.highestScore = Math.max(target.highestScore, numberValue(raw.highestScore ?? raw.highest_score))
   target.highestCheckout = Math.max(target.highestCheckout, numberValue(raw.highestCheckout ?? raw.highest_checkout))
+  const bestLeg = numberValue(raw.bestLegDarts ?? raw.best_leg_darts)
+  if (bestLeg > 0) {
+    target.bestLegDarts = target.bestLegDarts === 0 ? bestLeg : Math.min(target.bestLegDarts, bestLeg)
+  }
   target.legsWon += numberValue(raw.legsWon ?? raw.legs_won)
   target.legsLost += numberValue(raw.legsLost ?? raw.legs_lost)
 }

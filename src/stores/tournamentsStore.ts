@@ -427,9 +427,9 @@ export const useTournamentsStore = defineStore('tournaments', {
         groupIndex
       })
     },
-    calculateLeaderboards(tournamentId: string) {
+    calculateLeaderboards(tournamentId: string, players: Array<{ playerId: string; name: string }> = []) {
       const resultEntries = this.results.filter((entry) => entry.tournamentId === tournamentId)
-      return calculateLeaderboardsFromData(resultEntries)
+      return calculateLeaderboardsFromData(resultEntries, players)
     },
     deleteTournament(tournamentId: string) {
       this.tournaments = this.tournaments.filter((entry) => entry.id !== tournamentId)

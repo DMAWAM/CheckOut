@@ -113,7 +113,7 @@
         </div>
       </details>
       <div class="grid gap-3 md:grid-cols-2">
-        <label
+        <div
           v-for="player in players"
           :key="player.id"
           class="flex items-center justify-between gap-3 rounded-2xl border-2 border-border bg-white px-4 py-3"
@@ -122,17 +122,28 @@
             <div class="font-bold text-foreground">{{ player.name }}</div>
             <div v-if="player.username" class="text-xs text-muted-foreground">@{{ player.username }}</div>
           </div>
-          <select
-            class="min-w-36 rounded-xl border-2 border-border bg-background px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
-            :value="selectValue(player.groupIndex)"
-            @change="handleAssignEvent(player.id, $event)"
-          >
-            <option value="">Nicht zugeteilt</option>
-            <option v-for="group in groupOptions" :key="group.index" :value="group.index">
-              Gruppe {{ group.label }}
-            </option>
-          </select>
-        </label>
+          <div class="flex items-center gap-2">
+            <select
+              class="min-w-36 rounded-xl border-2 border-border bg-background px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
+              :value="selectValue(player.groupIndex)"
+              @change="handleAssignEvent(player.id, $event)"
+            >
+              <option value="">Nicht zugeteilt</option>
+              <option v-for="group in groupOptions" :key="group.index" :value="group.index">
+                Gruppe {{ group.label }}
+              </option>
+            </select>
+            <button
+              v-if="canDeletePlayers"
+              type="button"
+              class="w-10 h-10 rounded-xl border-2 border-border text-muted-foreground hover:border-destructive hover:text-destructive transition-all"
+              title="Spieler aus Turnier entfernen"
+              @click="emit('delete-player', player.id)"
+            >
+              <i class="pi pi-trash text-sm" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -157,6 +168,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import {
+  groupIndexToLabel,
+  normalizeImportedName,
+  parseGroupedPlayerImport
+} from '@/domain/groupImport'
 
 interface GroupAssignmentPlayer {
   id: string
@@ -170,6 +186,7 @@ const props = withDefaults(defineProps<{
   groupCount: number
   maxGroups?: number
   canEdit?: boolean
+  canDeletePlayers?: boolean
   locked?: boolean
   scheduleGenerated?: boolean
   showGenerateButton?: boolean
@@ -177,6 +194,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   maxGroups: 32,
   canEdit: false,
+  canDeletePlayers: false,
   locked: false,
   scheduleGenerated: false,
   showGenerateButton: true,
@@ -188,6 +206,7 @@ const emit = defineEmits<{
   (event: 'bulk-assign', payload: { groupCount: number; assignments: Array<{ playerId: string; groupIndex: number }> }): void
   (event: 'group-count', groupCount: number): void
   (event: 'generate'): void
+  (event: 'delete-player', playerId: string): void
 }>()
 
 const bulkInput = ref('')
@@ -201,15 +220,7 @@ const maxGroupCount = computed(() => Math.max(1, props.maxGroups))
 const canEditGroups = computed(() => props.canEdit && !props.locked)
 const canGenerate = computed(() => props.players.length >= 2 && !props.locked)
 
-const groupLabel = (index: number) => {
-  let label = ''
-  let value = index
-  do {
-    label = String.fromCharCode(65 + (value % 26)) + label
-    value = Math.floor(value / 26) - 1
-  } while (value >= 0)
-  return label
-}
+const groupLabel = groupIndexToLabel
 
 const groupOptions = computed(() =>
   Array.from({ length: normalizedGroupCount.value }, (_, index) => ({
@@ -249,55 +260,29 @@ const handleAssignEvent = (playerId: string, event: Event) => {
   handleAssign(playerId, target.value)
 }
 
-const normalizeName = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-
-const groupLabelToIndex = (label: string) => {
-  const normalized = label.trim().toUpperCase()
-  if (!/^[A-Z]+$/.test(normalized)) return undefined
-  return normalized.split('').reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1
-}
-
-const parseBulkLine = (line: string) => {
-  const normalizedLine = line.includes('\t') ? line : line.replace(':', ';')
-  return normalizedLine
-    .split(line.includes('\t') ? '\t' : /[;,]/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-}
-
 const applyBulkAssignments = () => {
-  const playerByName = new Map(props.players.map((player) => [normalizeName(player.name), player]))
+  const playerByName = new Map(props.players.map((player) => [normalizeImportedName(player.name), player]))
   const assignments: Array<{ playerId: string; groupIndex: number }> = []
   const missing: string[] = []
-  let requiredGroupCount = normalizedGroupCount.value
+  const parsed = parseGroupedPlayerImport(bulkInput.value, {
+    maxGroupCount: maxGroupCount.value,
+    initialGroupCount: normalizedGroupCount.value
+  })
 
-  bulkInput.value.split(/\r?\n/).forEach((line) => {
-    const parts = parseBulkLine(line)
-    if (parts.length < 2) return
-    const groupIndex = groupLabelToIndex(parts[0])
-    if (groupIndex === undefined || groupIndex < 0 || groupIndex >= maxGroupCount.value) return
-    requiredGroupCount = Math.max(requiredGroupCount, groupIndex + 1)
-    parts.slice(1).forEach((name) => {
-      const player = playerByName.get(normalizeName(name))
-      if (!player) {
-        missing.push(name)
-        return
-      }
-      assignments.push({ playerId: player.id, groupIndex })
-    })
+  parsed.assignments.forEach((assignment) => {
+    const player = playerByName.get(normalizeImportedName(assignment.name))
+    if (!player) {
+      missing.push(assignment.name)
+      return
+    }
+    assignments.push({ playerId: player.id, groupIndex: assignment.groupIndex })
   })
 
   if (assignments.length === 0) {
     bulkMessage.value = 'Keine passenden Spieler gefunden.'
     return
   }
-  emit('bulk-assign', { groupCount: requiredGroupCount, assignments })
+  emit('bulk-assign', { groupCount: parsed.requiredGroupCount, assignments })
   bulkMessage.value = `${assignments.length} Spieler zugeteilt${missing.length ? `, ${missing.length} nicht gefunden` : ''}.`
 }
 </script>
