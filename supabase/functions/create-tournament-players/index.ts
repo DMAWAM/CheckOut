@@ -24,6 +24,26 @@ const randomToken = (length: number, alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ2345678
 
 const generateCode = () => randomToken(8)
 
+const findUserByEmail = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  email: string
+) => {
+  const normalizedEmail = email.toLowerCase()
+  let page = 1
+  const perPage = 1000
+
+  while (page <= 20) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+    if (error) throw error
+    const user = data.users.find((entry) => entry.email?.toLowerCase() === normalizedEmail)
+    if (user) return user
+    if (data.users.length < perPage) return null
+    page += 1
+  }
+
+  return null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -122,6 +142,24 @@ Deno.serve(async (req) => {
       let playerId: string | null = existingProfileId
 
       if (!playerId) {
+        const existingAuthUser = await findUserByEmail(supabaseAdmin, email)
+        if (existingAuthUser) {
+          playerId = existingAuthUser.id
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(playerId, {
+            password: code,
+            user_metadata: {
+              username,
+              display_name: displayName
+            }
+          })
+          if (updateError) {
+            skipped.push({ name: displayName, reason: `updateExistingUser failed: ${updateError.message}` })
+            continue
+          }
+        }
+      }
+
+      if (!playerId) {
         const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email,
           password: code,
@@ -132,10 +170,26 @@ Deno.serve(async (req) => {
           }
         })
         if (createError || !createdUser?.user) {
-          skipped.push({ name: displayName, reason: createError?.message ?? 'createUser failed' })
-          continue
+          const existingAuthUser = await findUserByEmail(supabaseAdmin, email)
+          if (!existingAuthUser) {
+            skipped.push({ name: displayName, reason: createError?.message ?? 'createUser failed' })
+            continue
+          }
+          playerId = existingAuthUser.id
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(playerId, {
+            password: code,
+            user_metadata: {
+              username,
+              display_name: displayName
+            }
+          })
+          if (updateError) {
+            skipped.push({ name: displayName, reason: `updateExistingUser failed: ${updateError.message}` })
+            continue
+          }
+        } else {
+          playerId = createdUser.user.id
         }
-        playerId = createdUser.user.id
       } else {
         // Existing user: rotate their password to the new login code so the printed code works.
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(playerId, {
