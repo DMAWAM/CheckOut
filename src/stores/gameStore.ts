@@ -16,6 +16,21 @@ interface PendingCheckout {
   requiresDouble: boolean
 }
 
+/**
+ * A match that should be capped at a declared number of legs ("fixed legs"),
+ * regardless of who is winning. The canonical signal is `type: 'fixed_legs'`,
+ * but `allowDraw` and `fixedLegs` are equally diagnostic (set only by the
+ * fixed-legs branch of TournamentCreate.buildFormat) and we accept them too
+ * to defend against tournaments where the format type was saved wrong.
+ */
+const isFixedLegsLike = (format: MatchFormat | undefined): boolean => {
+  if (!format) return false
+  if (format.type === 'fixed_legs') return true
+  if (format.allowDraw === true) return true
+  if (format.fixedLegs !== undefined) return true
+  return false
+}
+
 
 interface GameState {
   players: Player[]
@@ -194,6 +209,24 @@ export const useGameStore = defineStore('game', {
     applyTurn(points: number, checkoutDouble: boolean, dartsUsed?: number) {
       if (!this.activePlayerId || !this.leg || !this.match) return
 
+      // Recovery safety net: a previous bug (or stale snapshot) could leave
+      // the player in a leg beyond the format's leg cap. If we're about to
+      // throw a turn in such a leg, abort and finish the match from the
+      // existing state. Cures a match that's stuck in "Leg 3" of a 2-leg
+      // tournament — the players see the result modal instead of being
+      // forced to play another leg.
+      if (isFixedLegsLike(this.match.format)) {
+        const target = this.match.format.fixedLegs ?? this.match.format.legsToWin ?? 0
+        if (target > 0 && this.leg.legNumber > target) {
+          console.warn(
+            '[gameStore] applyTurn aborted — already past fixed-legs target, finishing match',
+            { legNumber: this.leg.legNumber, target, format: this.match.format, legWins: { ...this.legWins } }
+          )
+          this.finishFixedLegsMatch()
+          return
+        }
+      }
+
       const startedScore = this.scores[this.activePlayerId]
       const isCheckout = startedScore - points === 0
       const isBustFromMissedDouble = isCheckout && this.match.doubleOut && !checkoutDouble
@@ -267,7 +300,11 @@ export const useGameStore = defineStore('game', {
     },
     isMatchWon(winnerId: string) {
       if (!this.match) return false
-      if (this.match.format?.type === 'fixed_legs') return false
+      // A fixed-legs match never ends "via leg wins" — it always plays the
+      // declared number of legs. We detect it broadly so a tournament that
+      // stored type:'first_to' but with fixedLegs/allowDraw still behaves
+      // like fixed legs.
+      if (isFixedLegsLike(this.match.format)) return false
       if (this.match.format?.useSets) {
         const targetSets = this.match.format.setsToWin ?? 1
         return (this.setWins[winnerId] ?? 0) >= targetSets
@@ -276,11 +313,15 @@ export const useGameStore = defineStore('game', {
       return (this.legWins[winnerId] ?? 0) >= targetLegs
     },
     completedLegCount() {
-      return this.legs.filter((leg) => leg.winnerId).length
+      // Count from the turn log (source of truth) instead of legs.filter(w)
+      // so an undo that cleared this.leg.winnerId on an earlier leg doesn't
+      // hide a real checkout from view.
+      return this.turns.filter((turn) => turn.checkoutHit).length
     },
     isFixedLegsComplete() {
-      if (!this.match || this.match.format?.type !== 'fixed_legs') return false
+      if (!this.match || !isFixedLegsLike(this.match.format)) return false
       const targetLegs = this.match.format.fixedLegs ?? this.match.format.legsToWin
+      if (!targetLegs || targetLegs <= 0) return false
       return this.completedLegCount() >= targetLegs
     },
     finishFixedLegsMatch() {
@@ -370,18 +411,15 @@ export const useGameStore = defineStore('game', {
     },
     startNextLeg() {
       if (!this.match || !this.leg) return
-      // Safety net: in a fixed_legs match, if for any reason we got here
-      // while the leg target is already met, do NOT spin up another leg.
-      // Finish the match instead. This guards against any path where
-      // applyTurn's branching could fall through to startNextLeg despite
-      // isFixedLegsComplete being true (e.g. snapshot resume with stale
-      // counters, race with reactivity, future refactors).
-      if (this.match.format?.type === 'fixed_legs') {
-        const target = this.match.format.fixedLegs ?? this.match.format.legsToWin ?? 0
+      // Safety net: in a fixed-legs match (detected broadly, also by
+      // allowDraw or fixedLegs even if type was saved as 'first_to') we
+      // never start another leg once the cap is reached -- finish instead.
+      if (isFixedLegsLike(this.match.format)) {
+        const target = this.match.format!.fixedLegs ?? this.match.format!.legsToWin ?? 0
         const completed = this.completedLegCount()
         if (target > 0 && completed >= target) {
           console.warn(
-            '[gameStore] startNextLeg called but fixed_legs target was already met — ending match',
+            '[gameStore] startNextLeg called but fixed-legs target was already met — ending match',
             { completed, target, format: this.match.format }
           )
           this.finishFixedLegsMatch()
@@ -391,7 +429,7 @@ export const useGameStore = defineStore('game', {
       // Same safety net for first_to / best_of: if a player already has
       // enough leg wins to clinch the match, end it instead of opening
       // another leg.
-      if (this.match.format && this.match.format.type !== 'fixed_legs' && !this.match.format.useSets) {
+      if (this.match.format && !isFixedLegsLike(this.match.format) && !this.match.format.useSets) {
         const target = this.match.format.legsToWin ?? this.match.legsToWin
         if (target && target > 0) {
           const reached = this.players.find((player) => (this.legWins[player.id] ?? 0) >= target)
