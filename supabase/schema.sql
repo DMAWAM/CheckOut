@@ -192,14 +192,16 @@ $$ language plpgsql security definer;
 
 grant execute on function public.update_tournament_status(uuid) to anon, authenticated;
 
--- RPC: resolve email for username login
+-- RPC: resolve email for username login. Defensive: trims trailing
+-- whitespace on both sides so a username that happened to be saved with a
+-- stray space (e.g. from a CSV import) still matches.
 create or replace function public.get_email_for_username(username_input text)
 returns text as $$
 declare result text;
 begin
   select email into result
   from public.profiles
-  where lower(username) = lower(username_input)
+  where lower(trim(username)) = lower(trim(username_input))
   limit 1;
   return result;
 end;

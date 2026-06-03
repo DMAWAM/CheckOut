@@ -90,12 +90,33 @@ export const useAuthStore = defineStore('auth', {
       const trimmed = identifier.trim()
       let email = trimmed
       if (!trimmed.includes('@')) {
-        const { data, error } = await supabase.rpc('get_email_for_username', { username_input: trimmed })
-        if (error || !data) {
+        // The RPC occasionally returns null right after a logout, while the
+        // anon session is still being re-initialised. Retry up to 3 times
+        // with increasing back-off before giving up. The RPC itself does a
+        // case-insensitive + trim-aware lookup, so a stray space or
+        // mismatched case in the stored username still matches.
+        const lookupEmail = async (): Promise<string | null> => {
+          const { data, error } = await supabase.rpc('get_email_for_username', {
+            username_input: trimmed
+          })
+          if (error) {
+            console.warn('login username lookup error', error)
+            return null
+          }
+          return typeof data === 'string' && data.length > 0 ? data : null
+        }
+        let resolved: string | null = null
+        for (let attempt = 0; attempt < 3 && !resolved; attempt += 1) {
+          if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 200 * attempt))
+          }
+          resolved = await lookupEmail()
+        }
+        if (!resolved) {
           this.loading = false
           throw new Error('Benutzername nicht gefunden')
         }
-        email = data as string
+        email = resolved
       }
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       this.loading = false
