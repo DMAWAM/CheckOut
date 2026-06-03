@@ -56,29 +56,6 @@
           </div>
         </div>
 
-        <div class="bg-white border-2 border-border rounded-2xl p-6">
-          <h3 class="text-lg font-bold text-foreground mb-3">Spiel-Format</h3>
-          <div class="space-y-3">
-            <div
-              v-for="row in formatSummaryRows"
-              :key="row.label"
-              class="flex items-center justify-between bg-muted/20 border-2 border-border rounded-xl px-4 py-3"
-            >
-              <span class="text-sm font-semibold text-muted-foreground">{{ row.label }}</span>
-              <span class="text-sm font-bold text-foreground text-right">{{ row.value }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white border-2 border-border rounded-2xl p-6">
-          <h3 class="text-lg font-bold text-foreground mb-3">Beschreibung</h3>
-          <p class="text-sm text-foreground whitespace-pre-line">
-            {{ tournamentDescription || 'Keine Beschreibung hinterlegt.' }}
-          </p>
-        </div>
-      </div>
-
-      <div v-else-if="activeTab === 'players'" class="space-y-4">
         <button
           v-if="isPlayerInTournament && pushStatus !== 'unsupported'"
           type="button"
@@ -142,48 +119,27 @@
           </span>
         </button>
 
-        <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-6">
-          <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
-          <div v-if="players.length === 0" class="text-sm text-muted-foreground">Keine Spieler.</div>
-          <div v-else class="space-y-2">
+
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-foreground mb-3">Spiel-Format</h3>
+          <div class="space-y-3">
             <div
-              v-for="player in players"
-              :key="player.id"
-              class="flex items-center justify-between gap-3 bg-muted/40 border-2 border-border rounded-xl px-3 sm:px-4 py-2.5 sm:py-3"
+              v-for="row in formatSummaryRows"
+              :key="row.label"
+              class="flex items-center justify-between bg-muted/20 border-2 border-border rounded-xl px-4 py-3"
             >
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="font-semibold text-foreground truncate">{{ player.name }}</span>
-                  <span
-                    v-if="groupCount > 1"
-                    class="shrink-0 text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full"
-                  >
-                    {{ playerGroupBadge(player.groupIndex) }}
-                  </span>
-                </div>
-                <span class="block text-[11px] text-muted-foreground truncate mt-0.5">@{{ player.username }}</span>
-              </div>
+              <span class="text-sm font-semibold text-muted-foreground">{{ row.label }}</span>
+              <span class="text-sm font-bold text-foreground text-right">{{ row.value }}</span>
             </div>
           </div>
         </div>
 
-        <GroupAssignmentPanel
-          v-if="tournament && tournament.mode !== 'knockout'"
-          :players="players"
-          :group-count="groupCount"
-          :max-groups="maxGroupCount"
-          :can-edit="isAdmin"
-          :can-delete-players="isAdmin && !scheduleGenerated"
-          :locked="scheduleGenerated"
-          :schedule-generated="scheduleGenerated"
-          :show-generate-button="isAdmin"
-          :error="groupAssignmentError || scheduleError"
-          @assign="assignPlayerGroup"
-          @bulk-assign="bulkAssignPlayerGroups"
-          @group-count="changeGroupCount"
-          @generate="generateSchedule"
-          @delete-player="confirmDeleteTournamentPlayer"
-        />
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-foreground mb-3">Beschreibung</h3>
+          <p class="text-sm text-foreground whitespace-pre-line">
+            {{ tournamentDescription || 'Keine Beschreibung hinterlegt.' }}
+          </p>
+        </div>
 
         <div v-if="isAdmin" class="bg-white border-2 border-border rounded-2xl p-6">
           <h2 class="text-lg font-bold text-foreground mb-3">Invite-Code</h2>
@@ -493,6 +449,34 @@
       </div>
 
       <div v-else-if="activeTab === 'groups'" class="space-y-5 sm:space-y-6">
+        <GroupAssignmentPanel
+          v-if="tournament && tournament.mode !== 'knockout'"
+          :players="players"
+          :group-count="groupCount"
+          :max-groups="maxGroupCount"
+          :can-edit="isAdmin"
+          :can-delete-players="isAdmin && !scheduleGenerated"
+          :locked="scheduleGenerated"
+          :schedule-generated="scheduleGenerated"
+          :show-generate-button="isAdmin"
+          :error="groupAssignmentError || scheduleError"
+          @assign="assignPlayerGroup"
+          @bulk-assign="bulkAssignPlayerGroups"
+          @group-count="changeGroupCount"
+          @generate="generateSchedule"
+          @delete-player="confirmDeleteTournamentPlayer"
+        />
+
+        <div
+          v-if="qualifierCount > 0"
+          class="bg-primary/5 border-2 border-primary/20 rounded-2xl px-4 py-3 flex items-start gap-3"
+        >
+          <span class="mt-1 h-4 w-1 rounded-full bg-primary shrink-0" />
+          <p class="text-xs sm:text-sm font-semibold text-muted-foreground">
+            Grün markierte Spieler qualifizieren sich für die K.O.-Phase.
+          </p>
+        </div>
+
         <div v-if="showGroupStandings" class="space-y-5 sm:space-y-6">
           <div
             v-for="group in groupStandingsList"
@@ -643,7 +627,7 @@ const onlineStore = useOnlineTournamentsStore()
 const auth = useAuthStore()
 const gameStore = useGameStore()
 
-type TabKey = 'info' | 'players' | 'matches' | 'groups' | 'knockout' | 'stats'
+type TabKey = 'info' | 'matches' | 'groups' | 'knockout' | 'stats'
 const activeTab = ref<TabKey>('matches')
 
 const tournamentId = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id))
@@ -661,7 +645,7 @@ const loginCodes = computed(() => onlineStore.loginCodes)
 // page on combined tournaments.
 const tabs = computed<TabKey[]>(() => {
   const mode = tournament.value?.mode
-  const base: TabKey[] = ['info', 'players', 'matches']
+  const base: TabKey[] = ['info', 'matches']
   if (mode === 'knockout') {
     return [...base, 'knockout', 'stats']
   }
@@ -674,7 +658,6 @@ const tabs = computed<TabKey[]>(() => {
 
 const tabLabels = computed<Record<TabKey, string>>(() => ({
   info: 'Info',
-  players: 'Spieler',
   matches: 'Spielplan',
   groups: 'Gruppen',
   knockout: 'K.O.-Phase',
@@ -1201,8 +1184,6 @@ watch(
 )
 
 const groupLabel = (index: number) => String.fromCharCode(65 + index)
-const playerGroupBadge = (groupIndex?: number) =>
-  groupIndex === undefined ? 'Nicht zugeteilt' : `Gruppe ${groupLabel(groupIndex)}`
 
 interface GroupStandingsEntry {
   index: number

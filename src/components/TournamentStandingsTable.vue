@@ -56,12 +56,6 @@
             <td class="py-2 px-2 font-semibold">
               <div class="flex items-center gap-2">
                 <span>{{ playerName(row.playerId) }}</span>
-                <span
-                  v-if="index < qualifierCount"
-                  class="text-[10px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full"
-                >
-                  Qualifiziert
-                </span>
               </div>
             </td>
             <td class="py-2 px-2 text-center">{{ row.played }}</td>
