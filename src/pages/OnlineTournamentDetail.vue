@@ -1399,7 +1399,11 @@ const placeholderNameMap = computed(() => {
           b.points - a.points ||
           b.wins - a.wins ||
           b.legsDiff - a.legsDiff ||
-          b.average - a.average
+          b.legsWon - a.legsWon ||
+          b.average - a.average ||
+          b.count180 - a.count180 ||
+          b.highestCheckout - a.highestCheckout ||
+          a.playerId.localeCompare(b.playerId)
       )
     while (tierRows.length < groups) tierRows.push(null as unknown as (typeof tierRows)[number])
     tierRows.slice(0, groups).forEach((row) => seedListByNumber.push(row?.playerId ?? null))
@@ -1415,7 +1419,11 @@ const placeholderNameMap = computed(() => {
           b.points - a.points ||
           b.wins - a.wins ||
           b.legsDiff - a.legsDiff ||
-          b.average - a.average
+          b.legsWon - a.legsWon ||
+          b.average - a.average ||
+          b.count180 - a.count180 ||
+          b.highestCheckout - a.highestCheckout ||
+          a.playerId.localeCompare(b.playerId)
       )
     wildcardRows.slice(0, wildcardSeedCount.value).forEach((row) => {
       seedListByNumber.push(row.playerId)

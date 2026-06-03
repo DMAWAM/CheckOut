@@ -9,8 +9,39 @@ export interface QualifierEntry {
   points: number
   wins: number
   legsDiff: number
+  legsWon: number
   average: number
+  count180: number
+  highestCheckout: number
 }
+
+/**
+ * Tie-breaker waterfall when two qualifiers have to be ordered against
+ * each other (same group rank, e.g. two group winners). Goes through the
+ * standard dart criteria first, then dart-quality stats, and finally
+ * falls back to a deterministic playerId comparison so the result is
+ * stable across reloads instead of relying on JS sort's input order.
+ *
+ * Order (each step only consulted if the previous one was equal):
+ *   1. Punkte (3-Punkte-System)
+ *   2. Anzahl Siege
+ *   3. Legs-Differenz (gewonnen − verloren)
+ *   4. Legs gewonnen (absolut)
+ *   5. 3-Dart-Schnitt
+ *   6. Anzahl 180er
+ *   7. Höchster Checkout
+ *   8. playerId-Vergleich (alphabetisch nach interner ID) → letzter,
+ *      deterministischer Tie-Break, garantiert stabile Reihung
+ */
+export const compareQualifiers = (a: QualifierEntry, b: QualifierEntry): number =>
+  b.points - a.points ||
+  b.wins - a.wins ||
+  b.legsDiff - a.legsDiff ||
+  b.legsWon - a.legsWon ||
+  b.average - a.average ||
+  b.count180 - a.count180 ||
+  b.highestCheckout - a.highestCheckout ||
+  a.playerId.localeCompare(b.playerId)
 
 /**
  * Pick the players that advance from the group stage into a knockout bracket
@@ -34,22 +65,25 @@ export const computeQualifiers = (params: {
   const { bracketSize, groupCount, standingsByGroup } = params
   if (groupCount < 1) return []
 
+  const toEntry = (row: StandingsRow, g: number, rank: number): QualifierEntry => ({
+    playerId: row.playerId,
+    groupIndex: g,
+    rankInGroup: rank,
+    points: row.points,
+    wins: row.wins,
+    legsDiff: row.legsDiff,
+    legsWon: row.legsWon,
+    average: row.average,
+    count180: row.count180,
+    highestCheckout: row.highestCheckout
+  })
+
   // Legacy mode: top 2 per group, no fill-up.
   if (!bracketSize || bracketSize <= 0) {
     const out: QualifierEntry[] = []
     for (let g = 0; g < groupCount; g += 1) {
       const standings = standingsByGroup.get(g) ?? []
-      standings.slice(0, 2).forEach((row, idx) => {
-        out.push({
-          playerId: row.playerId,
-          groupIndex: g,
-          rankInGroup: idx + 1,
-          points: row.points,
-          wins: row.wins,
-          legsDiff: row.legsDiff,
-          average: row.average
-        })
-      })
+      standings.slice(0, 2).forEach((row, idx) => out.push(toEntry(row, g, idx + 1)))
     }
     return out
   }
@@ -64,50 +98,19 @@ export const computeQualifiers = (params: {
     const standings = standingsByGroup.get(g) ?? []
     standings.forEach((row, idx) => {
       const rank = idx + 1
-      const entry: QualifierEntry = {
-        playerId: row.playerId,
-        groupIndex: g,
-        rankInGroup: rank,
-        points: row.points,
-        wins: row.wins,
-        legsDiff: row.legsDiff,
-        average: row.average
-      }
-      if (rank <= baseQualifiers) {
-        qualifiers.push(entry)
-      } else if (rank === baseQualifiers + 1) {
-        wildcardCandidates.push(entry)
-      }
+      const entry = toEntry(row, g, rank)
+      if (rank <= baseQualifiers) qualifiers.push(entry)
+      else if (rank === baseQualifiers + 1) wildcardCandidates.push(entry)
     })
   }
 
   if (remainingSlots > 0 && wildcardCandidates.length > 0) {
-    wildcardCandidates.sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.wins - a.wins ||
-        b.legsDiff - a.legsDiff ||
-        b.average - a.average
-    )
+    wildcardCandidates.sort(compareQualifiers)
     qualifiers.push(...wildcardCandidates.slice(0, remainingSlots))
   }
 
   return qualifiers
 }
-
-const compareQualifierStrength = (a: QualifierEntry, b: QualifierEntry) =>
-  a.rankInGroup - b.rankInGroup ||
-  b.points - a.points ||
-  b.wins - a.wins ||
-  b.legsDiff - a.legsDiff ||
-  b.average - a.average
-
-const compareQualifierWeakness = (a: QualifierEntry, b: QualifierEntry) =>
-  b.rankInGroup - a.rankInGroup ||
-  a.points - b.points ||
-  a.wins - b.wins ||
-  a.legsDiff - b.legsDiff ||
-  a.average - b.average
 
 const nextPowerOfTwo = (value: number) => {
   let result = 1
@@ -133,12 +136,6 @@ export const seedSlots = (size: number): number[] => {
   })
   return result
 }
-
-const sortByPerformanceDesc = (a: QualifierEntry, b: QualifierEntry) =>
-  b.points - a.points ||
-  b.wins - a.wins ||
-  b.legsDiff - a.legsDiff ||
-  b.average - a.average
 
 /**
  * Build the first round of a knockout bracket from the group-stage
@@ -189,7 +186,7 @@ export const buildSeededKnockoutPairsAvoidingSameGroup = (
   const seedList: Array<QualifierEntry | null> = []
   tierKeysAsc.forEach((rank) => {
     const tier = tierMap.get(rank) ?? []
-    tier.sort(sortByPerformanceDesc)
+    tier.sort(compareQualifiers)
     seedList.push(...tier)
   })
   while (seedList.length < bracketSize) seedList.push(null)
