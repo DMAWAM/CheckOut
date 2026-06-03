@@ -1,5 +1,13 @@
 <template>
-  <div class="min-h-screen bg-background text-foreground">
+  <!--
+    Intentionally NO min-h-screen here. #app already has min-height:100dvh
+    and the safe-area insets as padding. Adding min-h-screen (= 100vh,
+    which on iOS is BIGGER than 100dvh because it includes the hidden
+    URL bar) would force this child past #app's content area and produce
+    a 100vh-100dvh phantom scroll-strip below the keypad on real devices.
+    Pages that need a coloured backdrop set their own min-height.
+  -->
+  <div class="bg-background text-foreground">
     <Auth v-if="!auth.isAuthenticated && !isPublicRoute" />
     <RouterView v-else />
   </div>
