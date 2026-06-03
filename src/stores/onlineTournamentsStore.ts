@@ -775,13 +775,25 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       const hasKnockout = this.matches.some((match) => match.phase === 'knockout')
       if (hasKnockout) return
       const rrMatches = this.matches.filter((match) => match.phase === 'round_robin')
+      // CRITICAL: do nothing if no round-robin matches exist yet. The
+      // group phase hasn't even been scheduled. Without this check
+      // rrMatches.some(...) returns false on the empty array and the
+      // function would create a phantom KO match out of the auto-added
+      // admin + the alphabetically-first generated player, while every
+      // other player was still ungrouped. Reported by the user as
+      // "Spielplan auto-created with only one other player".
+      if (rrMatches.length === 0) return
       if (rrMatches.some((match) => match.status !== 'finished')) return
 
       const groupCount = this.currentTournament.settings.groupCount ?? 1
       const standingsByGroup = new Map<number, ReturnType<typeof calculateStandingsFromData>>()
       for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+        // Only consider players who were EXPLICITLY assigned to this
+        // group. Treating "groupIndex === undefined" as group 0 (the old
+        // `?? 0` default) lumped every ungrouped player into Gruppe A and
+        // skewed both the standings and the KO seeding.
         const playerIds = this.players
-          .filter((player) => (player.groupIndex ?? 0) === groupIndex)
+          .filter((player) => player.groupIndex === groupIndex)
           .map((player) => player.id)
         standingsByGroup.set(
           groupIndex,

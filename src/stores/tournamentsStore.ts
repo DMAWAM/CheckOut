@@ -355,6 +355,11 @@ export const useTournamentsStore = defineStore('tournaments', {
       const rrMatches = this.matches.filter(
         (match) => match.tournamentId === tournamentId && match.phase === 'round_robin'
       )
+      // No round-robin matches scheduled yet → group phase hasn't started.
+      // Without this guard the .some() returns false on an empty array and
+      // we'd spawn a phantom KO match from whichever players happen to be
+      // assigned to group 0.
+      if (rrMatches.length === 0) return
       if (rrMatches.some((match) => match.status !== 'finished')) return
       const groupCount = tournament.settings.groupCount ?? 1
       if (groupCount <= 1) {
