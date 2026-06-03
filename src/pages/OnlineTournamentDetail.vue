@@ -619,7 +619,7 @@ import type { MatchPlayerSummary } from '@/domain/matchSummary'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { resolveMatchDoubleOut, resolveMatchFormat } from '@/domain/tournamentFormat'
 import { normalizeImportedName, parseGroupedPlayerImport } from '@/domain/groupImport'
-import { computeQualifiers } from '@/domain/knockoutSeeding'
+import { computeQualifiers, seedSlots } from '@/domain/knockoutSeeding'
 import {
   currentPermission as currentPushPermission,
   ensureSubscriptionPersisted,
@@ -1299,20 +1299,51 @@ const wildcardQualifierLegend = computed(() =>
   wildcardRank.value === 3 ? 'beste Drittplatzierte' : `beste ${wildcardRank.value}.-Platzierte`
 )
 
-const combinedSeedLabels = computed(() => {
-  if (!isCombined.value) return []
-  const labels: string[] = []
+// Tier-based seed numbering. With koBracketSize > 0 the new seeding is:
+//   tier 1 (group winners)   → seed numbers 1 .. groupCount
+//   tier 2 (group seconds)   → seed numbers groupCount+1 .. 2*groupCount
+//   ... and so on for every direct-qualifier rank.
+//   wildcards (best Nths)    → seed numbers fill the rest, up to bracketSize.
+// Given a 1-based seed NUMBER this returns the matching placeholder
+// label like "1. Gruppensieger" or "4. bester Drittplatzierter".
+const labelForSeedNumber = (seedNumber: number): string => {
   const perGroup = directSeedsPerGroup.value
-  for (let groupIdx = 0; groupIdx < groupCount.value; groupIdx += 1) {
-    const label = groupLabel(groupIdx)
-    for (let rank = 1; rank <= perGroup; rank += 1) {
-      labels.push(`${rank}. Gruppe ${label}`)
+  const groups = Math.max(1, groupCount.value)
+  // Direct qualifier tiers
+  for (let tier = 1; tier <= perGroup; tier += 1) {
+    const tierStart = (tier - 1) * groups + 1
+    if (seedNumber >= tierStart && seedNumber < tierStart + groups) {
+      const rankInTier = seedNumber - tierStart + 1
+      const tierLabel =
+        tier === 1
+          ? 'Gruppensieger'
+          : tier === 2
+            ? 'Gruppenzweiter'
+            : `${tier}.-Platzierter Gruppe`
+      return `${rankInTier}. ${tierLabel}`
     }
   }
-  for (let index = 1; index <= wildcardSeedCount.value; index += 1) {
-    labels.push(`${index}. ${wildcardSeedLabel.value}`)
+  // Wildcard tier
+  const wildcardIndex = seedNumber - perGroup * groups
+  return `${wildcardIndex}. ${wildcardSeedLabel.value}`
+}
+
+const combinedSeedLabels = computed(() => {
+  if (!isCombined.value) return []
+  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
+  // Legacy layout: top 2 per group, simple A1/A2/B1/B2/... linear order.
+  if (bracketSize <= 0) {
+    const labels: string[] = []
+    for (let groupIdx = 0; groupIdx < groupCount.value; groupIdx += 1) {
+      const label = groupLabel(groupIdx)
+      labels.push(`1. Gruppe ${label}`)
+      labels.push(`2. Gruppe ${label}`)
+    }
+    return labels
   }
-  return labels
+  // Tiered seeding: visual position i ↔ seed number seedSlots(bracketSize)[i]
+  const slots = seedSlots(bracketSize)
+  return slots.map((seedNumber) => labelForSeedNumber(seedNumber))
 })
 
 const combinedSeedIds = computed(() => combinedSeedLabels.value.map((_, index) => `seed-${index}`))
@@ -1325,38 +1356,78 @@ const allGroupsFinished = computed(() => {
 
 const placeholderNameMap = computed(() => {
   const map = new Map<string, string>()
-  // Default placeholders ("1. Gruppe A", "2. Gruppe A", "1. bester
-  // Drittplatzierter", ...)
   combinedSeedLabels.value.forEach((label, index) => {
     map.set(`seed-${index}`, label)
   })
   if (!isCombined.value) return map
 
-  // Direct qualifier seats (rank 1..baseQualifiers per group) flip to the
-  // real name as soon as THAT group is done — their slot is guaranteed.
-  const perGroup = directSeedsPerGroup.value
-  groupStandingsList.value.forEach((entry) => {
-    if (!entry.isFinished) return
-    const seedBase = entry.index * perGroup
-    for (let rank = 0; rank < perGroup; rank += 1) {
-      const row = entry.rows[rank]
-      if (row) map.set(`seed-${seedBase + rank}`, playerName(row.playerId))
-    }
-  })
+  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
 
-  // Wildcard seats (e.g. the 4 best 3rd-placed in a 6x3 bracket): we
-  // cannot know who actually qualifies until EVERY group is done. So
-  // we keep them as "1. bester Drittplatzierter", etc. and only swap
-  // them for real names once the entire group phase has finished.
-  if (allGroupsFinished.value && wildcardSeedCount.value > 0) {
-    const wildcardSeedBase = perGroup * groupCount.value
-    const wildcardQualifiers = Object.entries(qualifiedPlayerStatus.value)
-      .filter(([, status]) => status === 'wildcard')
-      .map(([playerId]) => playerId)
-    wildcardQualifiers.forEach((playerId, index) => {
-      map.set(`seed-${wildcardSeedBase + index}`, playerName(playerId))
+  // Legacy layout (no bracketSize chosen): keep the old "fill per group
+  // as it finishes" behaviour where direct slots flip the moment a
+  // single group is done.
+  if (bracketSize <= 0) {
+    groupStandingsList.value.forEach((entry) => {
+      if (!entry.isFinished) return
+      const seedBase = entry.index * 2
+      const first = entry.rows[0]
+      const second = entry.rows[1]
+      if (first) map.set(`seed-${seedBase}`, playerName(first.playerId))
+      if (second) map.set(`seed-${seedBase + 1}`, playerName(second.playerId))
+    })
+    return map
+  }
+
+  // Tiered seeding: a player's final SEED NUMBER only exists once we
+  // can compare performances across all groups — i.e. once every group
+  // is finished. Until then, EVERY slot stays as its placeholder so
+  // nobody sees a name in a position that might still shift.
+  if (!allGroupsFinished.value) return map
+
+  const perGroup = directSeedsPerGroup.value
+  const groups = Math.max(1, groupCount.value)
+  const slots = seedSlots(bracketSize)
+
+  // Build the tier-sorted seed list. Index N here = seed NUMBER N+1.
+  const seedListByNumber: Array<string | null> = []
+  for (let tier = 1; tier <= perGroup; tier += 1) {
+    const tierRows = groupStandingsList.value
+      .map((entry) => entry.rows[tier - 1])
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.wins - a.wins ||
+          b.legsDiff - a.legsDiff ||
+          b.average - a.average
+      )
+    while (tierRows.length < groups) tierRows.push(null as unknown as (typeof tierRows)[number])
+    tierRows.slice(0, groups).forEach((row) => seedListByNumber.push(row?.playerId ?? null))
+  }
+  // Wildcards: rank (perGroup+1) players, sorted by performance, take
+  // the remaining seed slots up to bracketSize.
+  if (wildcardSeedCount.value > 0) {
+    const wildcardRows = groupStandingsList.value
+      .map((entry) => entry.rows[perGroup])
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.wins - a.wins ||
+          b.legsDiff - a.legsDiff ||
+          b.average - a.average
+      )
+    wildcardRows.slice(0, wildcardSeedCount.value).forEach((row) => {
+      seedListByNumber.push(row.playerId)
     })
   }
+
+  // Convert seed numbers to visual bracket positions and fill names.
+  slots.forEach((seedNumber, visualIndex) => {
+    const playerId = seedListByNumber[seedNumber - 1]
+    if (playerId) map.set(`seed-${visualIndex}`, playerName(playerId))
+  })
+
   return map
 })
 

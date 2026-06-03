@@ -116,19 +116,57 @@ const nextPowerOfTwo = (value: number) => {
 }
 
 /**
- * Build the first round of a knockout bracket from a set of qualifiers,
- * trying hard to avoid pairing players from the same group in R1.
+ * Standard tennis-style bracket-seed slot order. seedSlots(16) returns
+ * [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11]; consecutive
+ * pairs (#1 vs #16, #8 vs #9, ...) are R1 matches in the canonical
+ * 16-bracket layout. The recursion guarantees seeds are spread so the
+ * top seeds only ever meet in the latest possible round.
+ */
+export const seedSlots = (size: number): number[] => {
+  if (size <= 1) return [1]
+  const previous = seedSlots(size / 2)
+  const top = size + 1
+  const result: number[] = []
+  previous.forEach((seed) => {
+    result.push(seed)
+    result.push(top - seed)
+  })
+  return result
+}
+
+const sortByPerformanceDesc = (a: QualifierEntry, b: QualifierEntry) =>
+  b.points - a.points ||
+  b.wins - a.wins ||
+  b.legsDiff - a.legsDiff ||
+  b.average - a.average
+
+/**
+ * Build the first round of a knockout bracket from the group-stage
+ * qualifiers.
  *
- * Tier rule:
- * - the strongest qualifier per group ("rank 1") meets the weakest
- *   qualifier from a DIFFERENT group ("rank N"), the second-best meets
- *   the second-weakest of a different group, and so on.
+ * Seeding rules (the user's preferred German-style championship layout):
+ * 1. Group winners (rankInGroup === 1) take the lowest seed numbers,
+ *    ordered by group performance (most points → wins → legs diff → avg).
+ *    For 6 groups they occupy seeds 1-6.
+ * 2. Group runners-up (rankInGroup === 2) take the next block, again
+ *    ordered by performance. For 6 groups, seeds 7-12.
+ * 3. Wildcards (rankInGroup ≥ 3, e.g. the best 4 third-placed players in
+ *    a 6-group / Top 16 setup) take the remaining seeds, ordered by
+ *    performance. For 6 groups + Top 16, seeds 13-16.
+ *
+ * R1 pairings follow the canonical 16-bracket layout (#1 vs #16, #8 vs
+ * #9, #4 vs #13, ...).
+ *
+ * Anti-rematch pass: if a pair lands two players from the same group
+ * (because two of them ended up in adjacent tiers of the same bracket
+ * pair), we swap the lower-seeded player with the next available seed
+ * that breaks the conflict without creating a new one.
  *
  * Returns:
  * - `pairs`: ordered [a, b] pairs ready to be inserted as R1 matches.
  *   `b === null` means a bye through to R2.
- * - `seedOrder`: the input qualifiers re-sorted into the standard
- *   seeded slot order, useful for downstream UI hints.
+ * - `seedOrder`: the seeded slot order (top of bracket → bottom), which
+ *   downstream UI uses to label placeholder slots.
  */
 export const buildSeededKnockoutPairsAvoidingSameGroup = (
   qualifiers: QualifierEntry[]
@@ -136,94 +174,120 @@ export const buildSeededKnockoutPairsAvoidingSameGroup = (
   if (qualifiers.length < 2) return { pairs: [], seedOrder: qualifiers }
 
   const bracketSize = nextPowerOfTwo(qualifiers.length)
-  const slotCount = bracketSize / 2
 
-  const remaining = qualifiers.slice().sort(compareQualifierStrength)
-  const rankValues = Array.from(new Set(qualifiers.map((qualifier) => qualifier.rankInGroup))).sort(
-    (a, b) => a - b
+  // 1. Group qualifiers into rank-tiers, sort each tier by performance.
+  const tierMap = new Map<number, QualifierEntry[]>()
+  qualifiers.forEach((entry) => {
+    const tier = tierMap.get(entry.rankInGroup) ?? []
+    tier.push(entry)
+    tierMap.set(entry.rankInGroup, tier)
+  })
+  const tierKeysAsc = Array.from(tierMap.keys()).sort((a, b) => a - b)
+
+  // 2. Flatten into a "seed list" — index 0 = seed #1, index 1 = seed
+  //    #2, ... Top-tier players come first.
+  const seedList: Array<QualifierEntry | null> = []
+  tierKeysAsc.forEach((rank) => {
+    const tier = tierMap.get(rank) ?? []
+    tier.sort(sortByPerformanceDesc)
+    seedList.push(...tier)
+  })
+  while (seedList.length < bracketSize) seedList.push(null)
+
+  // 3. Standard bracket positions: which seed lives at which visual slot.
+  const slotOrder = seedSlots(bracketSize) // 1-based seed numbers, top→bottom
+  let visualSlots: Array<QualifierEntry | null> = slotOrder.map(
+    (seedNumber) => seedList[seedNumber - 1] ?? null
   )
-  const wildcardRanks = rankValues.filter((rank) => rank > 2)
 
-  const removeEntry = (entry: QualifierEntry) => {
-    const index = remaining.findIndex((candidate) => candidate.playerId === entry.playerId)
-    if (index >= 0) remaining.splice(index, 1)
+  // 4. Build R1 pairs from the visual slot order.
+  const buildPairs = (slots: Array<QualifierEntry | null>) => {
+    const result: Array<[QualifierEntry | null, QualifierEntry | null]> = []
+    for (let i = 0; i < slots.length; i += 2) {
+      result.push([slots[i], slots[i + 1] ?? null])
+    }
+    return result
   }
 
-  const preferredRankIndex = (preferredRanks: number[], candidate: QualifierEntry) => {
-    const index = preferredRanks.indexOf(candidate.rankInGroup)
-    return index === -1 ? Number.MAX_SAFE_INTEGER : index
+  // 5. Anti-rematch: walk through R1 pairs; for any same-group conflict,
+  //    swap the lower-seeded (numerically larger seed) player with the
+  //    nearest other slot whose swap fixes both pairs.
+  const conflicting = ([a, b]: [QualifierEntry | null, QualifierEntry | null]) =>
+    a !== null && b !== null && a.groupIndex === b.groupIndex
+
+  // Map slot index → seed number, used to identify "lower-seeded" within
+  // a conflicting pair. (The higher seed number is the lower seed rank.)
+  const slotSeedNumber = (slotIndex: number) => slotOrder[slotIndex] ?? Number.MAX_SAFE_INTEGER
+
+  const tryFixConflict = (pairIndex: number): boolean => {
+    const slotA = pairIndex * 2
+    const slotB = pairIndex * 2 + 1
+    const playerA = visualSlots[slotA]
+    const playerB = visualSlots[slotB]
+    if (!playerA || !playerB) return true
+    if (playerA.groupIndex !== playerB.groupIndex) return true
+
+    // The "lower-seeded" of the two is the one whose seed NUMBER is larger.
+    const swapSlot = slotSeedNumber(slotA) > slotSeedNumber(slotB) ? slotA : slotB
+    const partnerSlot = swapSlot === slotA ? slotB : slotA
+    const partnerPlayer = visualSlots[partnerSlot]
+    if (!partnerPlayer) return true
+
+    // Visit candidate slots in order of seed-number distance (closest
+    // candidate first). For each, attempt the swap and check both pairs.
+    const candidateSlots: number[] = []
+    for (let i = 0; i < visualSlots.length; i += 1) {
+      if (i === slotA || i === slotB) continue
+      candidateSlots.push(i)
+    }
+    candidateSlots.sort(
+      (i, j) =>
+        Math.abs(slotSeedNumber(i) - slotSeedNumber(swapSlot)) -
+        Math.abs(slotSeedNumber(j) - slotSeedNumber(swapSlot))
+    )
+
+    for (const candidate of candidateSlots) {
+      const candidatePlayer = visualSlots[candidate]
+      if (!candidatePlayer) continue
+      // Identify the candidate's pair partner.
+      const candidatePair = Math.floor(candidate / 2)
+      const candidatePartnerSlot = candidate % 2 === 0 ? candidate + 1 : candidate - 1
+      const candidatePartner = visualSlots[candidatePartnerSlot]
+      // After swap: swapSlot will hold candidatePlayer; candidate slot
+      // will hold the previously-conflicting player (i.e. the lower-
+      // seeded one from pair `pairIndex`).
+      const newPairA: [QualifierEntry | null, QualifierEntry | null] =
+        swapSlot === slotA
+          ? [candidatePlayer, playerB]
+          : [playerA, candidatePlayer]
+      const newPairCandidate: [QualifierEntry | null, QualifierEntry | null] =
+        candidate % 2 === 0
+          ? [visualSlots[swapSlot], candidatePartner]
+          : [candidatePartner, visualSlots[swapSlot]]
+      if (!conflicting(newPairA) && !conflicting(newPairCandidate)) {
+        // Perform the swap.
+        const tmp = visualSlots[swapSlot]
+        visualSlots[swapSlot] = visualSlots[candidate]
+        visualSlots[candidate] = tmp
+        // Also need to re-check the candidate's pair if it's earlier in
+        // the list (we may have created a new conflict elsewhere — but
+        // the condition above already excludes that).
+        void candidatePair
+        return true
+      }
+    }
+    return false // give up — leave the rematch
   }
 
-  const pickOpponent = (
-    anchor: QualifierEntry,
-    preferredRanks: number[],
-    strictPreferred: boolean
-  ): QualifierEntry | null => {
-    const candidates = remaining.filter((candidate) => {
-      if (candidate.playerId === anchor.playerId) return false
-      return !strictPreferred || preferredRanks.includes(candidate.rankInGroup)
-    })
-    if (candidates.length === 0) return null
-
-    candidates.sort((a, b) => {
-      const sameGroupScore =
-        Number(a.groupIndex === anchor.groupIndex) - Number(b.groupIndex === anchor.groupIndex)
-      if (sameGroupScore !== 0) return sameGroupScore
-
-      const preferredScore =
-        Number(!preferredRanks.includes(a.rankInGroup)) -
-        Number(!preferredRanks.includes(b.rankInGroup))
-      if (preferredScore !== 0) return preferredScore
-
-      const preferredOrder =
-        preferredRankIndex(preferredRanks, a) - preferredRankIndex(preferredRanks, b)
-      if (preferredOrder !== 0) return preferredOrder
-
-      return compareQualifierWeakness(a, b)
-    })
-
-    return candidates[0] ?? null
+  for (let i = 0; i < bracketSize / 2; i += 1) {
+    tryFixConflict(i)
   }
 
-  const pairEntries: Array<[QualifierEntry, QualifierEntry | null]> = []
-  const addPair = (anchor: QualifierEntry, opponent: QualifierEntry | null) => {
-    removeEntry(anchor)
-    if (opponent) removeEntry(opponent)
-    pairEntries.push([anchor, opponent])
-  }
+  // 6. Convert to output format.
+  const finalPairs = buildPairs(visualSlots)
+  const pairs: Array<[string, string | null]> = finalPairs
+    .map(([a, b]): [string, string | null] => [a?.playerId ?? '', b?.playerId ?? null])
+    .filter(([a]) => a !== '')
 
-  // First pass: group winners should preferably meet one of the best
-  // third-placed qualifiers. For 6x6 -> Top 16 this creates exactly the
-  // intended "1st vs 3rd" pairings while avoiding same-group rematches.
-  if (wildcardRanks.length > 0) {
-    const groupWinners = remaining
-      .filter((qualifier) => qualifier.rankInGroup === 1)
-      .sort(compareQualifierStrength)
-    groupWinners.forEach((winner) => {
-      if (pairEntries.length >= slotCount) return
-      if (!remaining.some((entry) => entry.playerId === winner.playerId)) return
-      const opponent = pickOpponent(winner, wildcardRanks, true)
-      if (opponent) addPair(winner, opponent)
-    })
-  }
-
-  while (remaining.length > 0 && pairEntries.length < slotCount) {
-    const anchor = remaining[0]
-    const preferredRanks =
-      anchor.rankInGroup === 1
-        ? [...wildcardRanks, 2]
-        : anchor.rankInGroup === 2
-          ? [1, 2, ...wildcardRanks]
-          : [1, 2, ...wildcardRanks]
-    const opponent = pickOpponent(anchor, preferredRanks, false)
-    addPair(anchor, opponent)
-  }
-
-  const pairs: Array<[string, string | null]> = pairEntries.map(([a, b]) => [
-    a.playerId,
-    b?.playerId ?? null
-  ])
-  const seedOrder = pairEntries.flatMap(([a, b]) => [a, b])
-
-  return { pairs, seedOrder }
+  return { pairs, seedOrder: visualSlots }
 }
