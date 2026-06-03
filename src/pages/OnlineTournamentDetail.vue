@@ -1411,6 +1411,7 @@ const loadTournament = async (id?: string) => {
   deletePlayerTarget.value = null
   try {
     await onlineStore.fetchTournamentDetail(id)
+    await syncKnockoutProgress()
     if (isAdmin.value) {
       const code = await onlineStore.getOrCreateInvite(id)
       inviteCode.value = code ?? ''
@@ -1435,6 +1436,7 @@ const manualRefresh = async () => {
   manualRefreshing.value = true
   try {
     await onlineStore.fetchTournamentDetail(tournamentId.value)
+    await syncKnockoutProgress()
   } catch (err) {
     console.warn('manual refresh failed', err)
   } finally {
@@ -1456,9 +1458,16 @@ const refreshTournamentSilently = async () => {
   if (liveMatchId.value) return
   try {
     await onlineStore.fetchTournamentDetail(tournamentId.value)
+    await syncKnockoutProgress()
   } catch (err) {
     console.warn('tournament auto-refresh failed', err)
   }
+}
+
+const syncKnockoutProgress = async () => {
+  if (!tournament.value || tournament.value.mode === 'round_robin') return
+  await onlineStore.ensureKnockoutPhase()
+  await onlineStore.advanceKnockoutIfReady()
 }
 
 const startTournamentPolling = () => {

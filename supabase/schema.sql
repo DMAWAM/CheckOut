@@ -53,6 +53,9 @@ create table if not exists tournament_matches (
   winner_id uuid references auth.users(id) on delete set null
 );
 
+create unique index if not exists tournament_matches_unique_slot
+on tournament_matches (tournament_id, phase, round, "order");
+
 create table if not exists tournament_match_results (
   id uuid primary key,
   match_id uuid references tournament_matches(id) on delete cascade,
@@ -312,6 +315,10 @@ drop policy if exists "matches_insert" on tournament_matches;
 create policy "matches_insert" on tournament_matches for insert
 to authenticated with check (
   public.is_tournament_admin(tournament_matches.tournament_id)
+  or (
+    tournament_matches.phase = 'knockout'
+    and public.is_tournament_member(tournament_matches.tournament_id)
+  )
 );
 
 -- Match results: readable by participants; insert/update by participants or creator

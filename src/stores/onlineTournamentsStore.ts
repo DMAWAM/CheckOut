@@ -865,60 +865,75 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
     },
     async advanceKnockoutIfReady() {
       if (!this.currentTournament) return
-      const knockoutMatches = this.matches
-        .filter((match) => match.phase === 'knockout')
-        .sort((a, b) => a.round - b.round || a.order - b.order)
-      if (knockoutMatches.length === 0) return
-      const currentRound = Math.max(...knockoutMatches.map((match) => match.round))
-      const currentRoundMatches = knockoutMatches.filter((match) => match.round === currentRound)
-      if (currentRoundMatches.some((match) => match.status !== 'finished')) return
+      let createdAny = false
+      let keepAdvancing = true
 
-      const winners = currentRoundMatches
-        .map((match) => match.winnerId)
-        .filter((winnerId): winnerId is string => Boolean(winnerId))
-      if (winners.length <= 1) return
+      while (keepAdvancing) {
+        keepAdvancing = false
+        const knockoutMatches = this.matches
+          .filter((match) => match.phase === 'knockout')
+          .sort((a, b) => a.round - b.round || a.order - b.order)
+        if (knockoutMatches.length === 0) return
 
-      const nextRoundExists = knockoutMatches.some((match) => match.round === currentRound + 1)
-      if (nextRoundExists) return
-      const pairs = buildKnockoutSeedPairs(winners)
-      let order = this.matches.length + 1
-      const now = new Date().toISOString()
-      const inserts: TournamentMatch[] = []
-      pairs.forEach(([playerAId, playerBId]) => {
-        if (!playerBId) {
-          inserts.push({
-            id: createId(),
-            tournamentId: this.currentTournament!.id,
-            phase: 'knockout',
-            round: currentRound + 1,
-            order: order++,
-            playerAId,
-            playerBId: playerAId,
-            status: 'finished',
-            startedAt: now,
-            endedAt: now,
-            winnerId: playerAId
-          })
-        } else {
-          inserts.push({
-            id: createId(),
-            tournamentId: this.currentTournament!.id,
-            phase: 'knockout',
-            round: currentRound + 1,
-            order: order++,
-            playerAId,
-            playerBId,
-            status: 'pending'
-          })
+        const maxRound = Math.max(...knockoutMatches.map((match) => match.round))
+        const inserts: TournamentMatch[] = []
+
+        for (let round = 1; round <= maxRound; round += 1) {
+          const currentRoundMatches = knockoutMatches
+            .filter((match) => match.round === round)
+            .sort((a, b) => a.order - b.order)
+          if (currentRoundMatches.length <= 1) continue
+
+          for (let index = 0; index < currentRoundMatches.length; index += 2) {
+            const left = currentRoundMatches[index]
+            const right = currentRoundMatches[index + 1]
+            if (!left || !right) continue
+            if (left.status !== 'finished' || right.status !== 'finished') continue
+            if (!left.winnerId || !right.winnerId) continue
+
+            const nextRound = round + 1
+            const nextOrder = nextRound * 1000 + Math.floor(index / 2) + 1
+            const alreadyExists = this.matches.some((match) => (
+              match.phase === 'knockout' &&
+              match.round === nextRound &&
+              (match.order === nextOrder || (
+                [match.playerAId, match.playerBId].includes(left.winnerId!) &&
+                [match.playerAId, match.playerBId].includes(right.winnerId!)
+              ))
+            ))
+            if (alreadyExists) continue
+
+            const isBye = left.winnerId === right.winnerId
+            inserts.push({
+              id: createId(),
+              tournamentId: this.currentTournament.id,
+              phase: 'knockout',
+              round: nextRound,
+              order: nextOrder,
+              playerAId: left.winnerId,
+              playerBId: right.winnerId,
+              status: isBye ? 'finished' : 'pending',
+              startedAt: isBye ? new Date().toISOString() : undefined,
+              endedAt: isBye ? new Date().toISOString() : undefined,
+              winnerId: isBye ? left.winnerId : undefined
+            })
+          }
         }
-      })
-      if (inserts.length > 0) {
-        const payload = inserts.map((match) => toMatchInsert(match))
-        const { error } = await supabase.from('tournament_matches').insert(payload)
-        if (error) {
-          console.warn(error)
+
+        if (inserts.length > 0) {
+          const payload = inserts.map((match) => toMatchInsert(match))
+          const { error } = await supabase.from('tournament_matches').insert(payload)
+          if (error) {
+            console.warn(error)
+          }
+          await this.fetchTournamentDetail(this.currentTournament.id)
+          createdAny = true
+          keepAdvancing = !error
         }
-        await this.fetchTournamentDetail(this.currentTournament.id)
+      }
+
+      if (createdAny) {
+        await this.updateTournamentStatus()
       }
     },
     async updateTournamentStatus() {
