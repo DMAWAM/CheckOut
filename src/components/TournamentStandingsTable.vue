@@ -34,21 +34,20 @@
             v-for="(row, index) in rows"
             :key="row.playerId"
             class="border-t border-dashed border-border text-foreground"
-            :class="index < qualifierCount ? 'bg-primary/5' : ''"
+            :class="qualifierRowClass(row, index)"
           >
             <td
               class="py-2 px-2 font-semibold relative"
-              :class="index < qualifierCount ? 'pl-4' : ''"
+              :class="qualifierKind(row, index) ? 'pl-4' : ''"
             >
               <span
-                v-if="index < qualifierCount"
-                class="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r"
+                v-if="qualifierKind(row, index)"
+                class="absolute left-0 top-0 bottom-0 w-1 rounded-r"
+                :class="qualifierKind(row, index) === 'wildcard' ? 'bg-dart-gold' : 'bg-primary'"
               />
               <span
                 class="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 text-[11px] font-bold"
-                :class="index < qualifierCount
-                  ? 'border-primary text-primary bg-primary/10'
-                  : 'border-border text-muted-foreground'"
+                :class="qualifierRankClass(row, index)"
               >
                 {{ index + 1 }}
               </span>
@@ -79,7 +78,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 interface StandingsRow {
   playerId: string
   played: number
@@ -95,14 +93,36 @@ interface StandingsRow {
   highestCheckout: number
 }
 
+type QualifierKind = 'direct' | 'wildcard'
+
 const props = withDefaults(
   defineProps<{
     title: string
     rows: StandingsRow[]
     playerName: (playerId: string) => string
     qualifierCount?: number
+    qualifierStatus?: Record<string, QualifierKind>
   }>(),
   { qualifierCount: 0 }
 )
-const qualifierCount = computed(() => props.qualifierCount)
+
+const qualifierKind = (row: StandingsRow, index: number): QualifierKind | undefined => {
+  const status = props.qualifierStatus?.[row.playerId]
+  if (status) return status
+  return index < props.qualifierCount ? 'direct' : undefined
+}
+
+const qualifierRowClass = (row: StandingsRow, index: number) => {
+  const kind = qualifierKind(row, index)
+  if (kind === 'wildcard') return 'bg-dart-gold/10'
+  if (kind === 'direct') return 'bg-primary/5'
+  return ''
+}
+
+const qualifierRankClass = (row: StandingsRow, index: number) => {
+  const kind = qualifierKind(row, index)
+  if (kind === 'wildcard') return 'border-dart-gold text-dart-gold bg-dart-gold/10'
+  if (kind === 'direct') return 'border-primary text-primary bg-primary/10'
+  return 'border-border text-muted-foreground'
+}
 </script>

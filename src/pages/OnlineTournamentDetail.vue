@@ -469,13 +469,19 @@
 
       <div v-else-if="activeTab === 'rankings'" class="space-y-5 sm:space-y-6">
         <div
-          v-if="qualifierCount > 0"
+          v-if="hasKnockoutQualifiers"
           class="bg-primary/5 border-2 border-primary/20 rounded-2xl px-4 py-3 flex items-start gap-3"
         >
-          <span class="mt-1 h-4 w-1 rounded-full bg-primary shrink-0" />
-          <p class="text-xs sm:text-sm font-semibold text-muted-foreground">
-            Grün markierte Spieler qualifizieren sich für die K.O.-Phase.
-          </p>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 text-xs sm:text-sm font-semibold text-muted-foreground">
+            <span class="inline-flex items-center gap-2">
+              <span class="h-4 w-1 rounded-full bg-primary shrink-0" />
+              Grün markiert: direkte Qualifikation
+            </span>
+            <span v-if="hasWildcardQualifiers" class="inline-flex items-center gap-2">
+              <span class="h-4 w-1 rounded-full bg-dart-gold shrink-0" />
+              Gold markiert: {{ wildcardQualifierLegend }}
+            </span>
+          </div>
         </div>
 
         <div v-if="showGroupStandings" class="space-y-5 sm:space-y-6">
@@ -506,7 +512,7 @@
               :title="group.title"
               :rows="group.rows"
               :player-name="playerName"
-              :qualifier-count="qualifierCount"
+              :qualifier-status="qualifiedPlayerStatus"
             />
           </div>
         </div>
@@ -613,6 +619,7 @@ import type { MatchPlayerSummary } from '@/domain/matchSummary'
 import type { LiveMatchSnapshot } from '@/domain/liveMatch'
 import { resolveMatchDoubleOut, resolveMatchFormat } from '@/domain/tournamentFormat'
 import { normalizeImportedName, parseGroupedPlayerImport } from '@/domain/groupImport'
+import { computeQualifiers } from '@/domain/knockoutSeeding'
 import {
   currentPermission as currentPushPermission,
   ensureSubscriptionPersisted,
@@ -751,17 +758,6 @@ void refreshPushStatus()
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
 const maxGroupCount = computed(() => (tournament.value?.mode === 'knockout' ? 1 : 32))
 const scheduleGenerated = computed(() => matches.value.length > 0)
-// How many slots per group qualify for the K.O. phase. With the new
-// koBracketSize setting this is no longer fixed at 2 — it's bracketSize /
-// groupCount (rounded up, so groups whose "best 3rds" also qualify still
-// get their 3rd row highlighted).
-const qualifierCount = computed(() => {
-  if (tournament.value?.mode !== 'combined') return 0
-  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
-  if (bracketSize <= 0) return 2
-  const groups = Math.max(1, groupCount.value)
-  return Math.ceil(bracketSize / groups)
-})
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
 const tournamentDescription = computed(() => tournament.value?.settings.description ?? '')
 const hasKnockoutRoundOverrides = computed(() => {
@@ -1225,6 +1221,38 @@ const groupStandingsList = computed<GroupStandingsEntry[]>(() => {
   ).filter((entry): entry is GroupStandingsEntry => entry !== null)
 })
 
+type QualifierStatus = 'direct' | 'wildcard'
+
+const qualifiedPlayerStatus = computed<Record<string, QualifierStatus>>(() => {
+  if (tournament.value?.mode !== 'combined') return {}
+  const standingsByGroup = new Map<number, ReturnType<typeof onlineStore.standingsByGroup>>()
+  groupStandingsList.value.forEach((entry) => {
+    standingsByGroup.set(entry.index, entry.rows)
+  })
+
+  const bracketSize = tournament.value.settings.koBracketSize
+  const baseQualifiers =
+    bracketSize && bracketSize > 0
+      ? Math.floor(bracketSize / Math.max(1, groupCount.value))
+      : 2
+  const qualifiers = computeQualifiers({
+    bracketSize,
+    groupCount: groupCount.value,
+    standingsByGroup
+  })
+
+  return qualifiers.reduce<Record<string, QualifierStatus>>((acc, qualifier) => {
+    acc[qualifier.playerId] =
+      qualifier.rankInGroup <= baseQualifiers ? 'direct' : 'wildcard'
+    return acc
+  }, {})
+})
+
+const hasKnockoutQualifiers = computed(() => Object.keys(qualifiedPlayerStatus.value).length > 0)
+const hasWildcardQualifiers = computed(() =>
+  Object.values(qualifiedPlayerStatus.value).some((status) => status === 'wildcard')
+)
+
 const finalStandings = computed(() => onlineStore.finalStandings)
 const leaderboard = computed(() => onlineStore.leaderboards)
 
@@ -1249,24 +1277,40 @@ const showKnockoutBracket = computed(() => {
 const isCombined = computed(() => tournament.value?.mode === 'combined')
 const isKnockout = computed(() => tournament.value?.mode === 'knockout')
 
-// How many seed slots each group contributes to the bracket. With the new
-// koBracketSize the count is no longer fixed at 2 per group.
-const seedsPerGroup = computed(() => {
+const directSeedsPerGroup = computed(() => {
   if (!isCombined.value) return 0
   const bracketSize = tournament.value?.settings.koBracketSize ?? 0
   if (bracketSize <= 0) return 2
-  return Math.ceil(bracketSize / Math.max(1, groupCount.value))
+  return Math.floor(bracketSize / Math.max(1, groupCount.value))
 })
+
+const wildcardSeedCount = computed(() => {
+  if (!isCombined.value) return 0
+  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
+  if (bracketSize <= 0) return 0
+  return Math.max(0, bracketSize - directSeedsPerGroup.value * Math.max(1, groupCount.value))
+})
+
+const wildcardRank = computed(() => directSeedsPerGroup.value + 1)
+const wildcardSeedLabel = computed(() =>
+  wildcardRank.value === 3 ? 'bester Drittplatzierter' : `bester ${wildcardRank.value}.-Platzierter`
+)
+const wildcardQualifierLegend = computed(() =>
+  wildcardRank.value === 3 ? 'beste Drittplatzierte' : `beste ${wildcardRank.value}.-Platzierte`
+)
 
 const combinedSeedLabels = computed(() => {
   if (!isCombined.value) return []
   const labels: string[] = []
-  const perGroup = seedsPerGroup.value
+  const perGroup = directSeedsPerGroup.value
   for (let groupIdx = 0; groupIdx < groupCount.value; groupIdx += 1) {
     const label = groupLabel(groupIdx)
     for (let rank = 1; rank <= perGroup; rank += 1) {
       labels.push(`${rank}. Gruppe ${label}`)
     }
+  }
+  for (let index = 1; index <= wildcardSeedCount.value; index += 1) {
+    labels.push(`${index}. ${wildcardSeedLabel.value}`)
   }
   return labels
 })
@@ -1283,7 +1327,7 @@ const placeholderNameMap = computed(() => {
   // real qualifier names. Layout is [1.A, 2.A, ..., 1.B, 2.B, ...] —
   // same ordering used by combinedSeedLabels.
   if (isCombined.value) {
-    const perGroup = seedsPerGroup.value
+    const perGroup = directSeedsPerGroup.value
     groupStandingsList.value.forEach((entry) => {
       if (!entry.isFinished) return
       const seedBase = entry.index * perGroup
@@ -1291,6 +1335,14 @@ const placeholderNameMap = computed(() => {
         const row = entry.rows[rank]
         if (row) map.set(`seed-${seedBase + rank}`, playerName(row.playerId))
       }
+    })
+
+    const wildcardSeedBase = perGroup * groupCount.value
+    const wildcardQualifiers = Object.entries(qualifiedPlayerStatus.value)
+      .filter(([, status]) => status === 'wildcard')
+      .map(([playerId]) => playerId)
+    wildcardQualifiers.forEach((playerId, index) => {
+      map.set(`seed-${wildcardSeedBase + index}`, playerName(playerId))
     })
   }
   return map

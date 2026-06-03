@@ -102,27 +102,16 @@ const compareQualifierStrength = (a: QualifierEntry, b: QualifierEntry) =>
   b.legsDiff - a.legsDiff ||
   b.average - a.average
 
+const compareQualifierWeakness = (a: QualifierEntry, b: QualifierEntry) =>
+  b.rankInGroup - a.rankInGroup ||
+  a.points - b.points ||
+  a.wins - b.wins ||
+  a.legsDiff - b.legsDiff ||
+  a.average - b.average
+
 const nextPowerOfTwo = (value: number) => {
   let result = 1
   while (result < value) result *= 2
-  return result
-}
-
-/**
- * Standard bracket-seed positions for a power-of-two bracket. e.g. for size
- * 16 this returns [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11].
- * Position pairs (0,1), (2,3), ... each form an R1 match in standard tennis
- * seeding so #1 plays #16, #8 plays #9 next to it, etc.
- */
-const seedSlots = (size: number): number[] => {
-  if (size <= 1) return [1]
-  const previous = seedSlots(size / 2)
-  const top = size + 1
-  const result: number[] = []
-  previous.forEach((seed) => {
-    result.push(seed)
-    result.push(top - seed)
-  })
   return result
 }
 
@@ -147,88 +136,94 @@ export const buildSeededKnockoutPairsAvoidingSameGroup = (
   if (qualifiers.length < 2) return { pairs: [], seedOrder: qualifiers }
 
   const bracketSize = nextPowerOfTwo(qualifiers.length)
-
-  // Bucket by rank-in-group so we know which "tier" each player is in.
-  const byRank = new Map<number, QualifierEntry[]>()
-  qualifiers.forEach((q) => {
-    const bucket = byRank.get(q.rankInGroup) ?? []
-    bucket.push(q)
-    byRank.set(q.rankInGroup, bucket)
-  })
-  // Sort each rank bucket by strength so the strongest rank-1 player goes
-  // to seed-slot #1, etc.
-  byRank.forEach((list) =>
-    list.sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.wins - a.wins ||
-        b.legsDiff - a.legsDiff ||
-        b.average - a.average
-    )
-  )
-
-  // Walk the bracket from outside in (seed #1 vs #last, seed #2 vs
-  // #second-last, ...). For each pair, draw one player from the "strong"
-  // tier and one from the "weak" tier, both from DIFFERENT groups when
-  // possible.
-  const rankBucketsAsc: QualifierEntry[][] = [...byRank.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([, list]) => list)
-  // Strong-half and weak-half tiers: rank 1 with rank N, rank 2 with rank
-  // N-1, etc.
-  const tierCount = rankBucketsAsc.length
-  const strongTiers = rankBucketsAsc.slice(0, Math.ceil(tierCount / 2))
-  const weakTiers = rankBucketsAsc.slice(Math.ceil(tierCount / 2)).reverse()
-
-  // Flattened strong queue: strongest-tier first (rank 1), then rank 2, ...
-  const strongQueue: QualifierEntry[] = strongTiers.flatMap((tier) => [...tier])
-  const weakQueue: QualifierEntry[] = weakTiers.flatMap((tier) => [...tier])
-
-  // Pull the next weak entry whose group differs from `excludeGroup`. If
-  // none fits, fall back to the first remaining entry so we still build a
-  // complete bracket — even if a same-group pair sneaks in, the rest of R1
-  // stays cross-group.
-  const pullWeak = (excludeGroup: number): QualifierEntry | null => {
-    const idx = weakQueue.findIndex((entry) => entry.groupIndex !== excludeGroup)
-    if (idx === -1) {
-      return weakQueue.shift() ?? null
-    }
-    return weakQueue.splice(idx, 1)[0] ?? null
-  }
-
-  const pairs: Array<[QualifierEntry | null, QualifierEntry | null]> = []
   const slotCount = bracketSize / 2
-  for (let i = 0; i < slotCount; i += 1) {
-    const strong = strongQueue.shift() ?? null
-    const weak = strong ? pullWeak(strong.groupIndex) : weakQueue.shift() ?? null
-    pairs.push([strong, weak])
+
+  const remaining = qualifiers.slice().sort(compareQualifierStrength)
+  const rankValues = Array.from(new Set(qualifiers.map((qualifier) => qualifier.rankInGroup))).sort(
+    (a, b) => a - b
+  )
+  const wildcardRanks = rankValues.filter((rank) => rank > 2)
+
+  const removeEntry = (entry: QualifierEntry) => {
+    const index = remaining.findIndex((candidate) => candidate.playerId === entry.playerId)
+    if (index >= 0) remaining.splice(index, 1)
   }
 
-  // Reorder the R1 pairs into the canonical bracket layout (#1 vs #16,
-  // #8 vs #9, #4 vs #13, ...) so the bracket renderer places matches
-  // correctly in the visual tree.
-  const order = seedSlots(slotCount)
-  const reorderedPairs: Array<[string, string | null]> = order.map((seedIndex) => {
-    const pair = pairs[seedIndex - 1]
-    if (!pair) return ['', null] as [string, string | null]
-    const [a, b] = pair
-    return [a?.playerId ?? '', b?.playerId ?? null]
-  })
+  const preferredRankIndex = (preferredRanks: number[], candidate: QualifierEntry) => {
+    const index = preferredRanks.indexOf(candidate.rankInGroup)
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index
+  }
 
-  // Flat seed order for UI / downstream consumers.
-  const seedOrder: Array<QualifierEntry | null> = []
-  order.forEach((seedIndex) => {
-    const pair = pairs[seedIndex - 1]
-    seedOrder.push(pair?.[0] ?? null)
-    seedOrder.push(pair?.[1] ?? null)
-  })
+  const pickOpponent = (
+    anchor: QualifierEntry,
+    preferredRanks: number[],
+    strictPreferred: boolean
+  ): QualifierEntry | null => {
+    const candidates = remaining.filter((candidate) => {
+      if (candidate.playerId === anchor.playerId) return false
+      return !strictPreferred || preferredRanks.includes(candidate.rankInGroup)
+    })
+    if (candidates.length === 0) return null
 
-  // Drop empty-strong (no qualifier) shells that the renderer doesn't need
-  // — those happen when qualifiers.length isn't a clean power of two.
-  const cleanPairs = reorderedPairs.filter(([a]) => a !== '')
+    candidates.sort((a, b) => {
+      const sameGroupScore =
+        Number(a.groupIndex === anchor.groupIndex) - Number(b.groupIndex === anchor.groupIndex)
+      if (sameGroupScore !== 0) return sameGroupScore
 
-  // Suppress unused warning while keeping the helper handy for inspection.
-  void compareQualifierStrength
+      const preferredScore =
+        Number(!preferredRanks.includes(a.rankInGroup)) -
+        Number(!preferredRanks.includes(b.rankInGroup))
+      if (preferredScore !== 0) return preferredScore
 
-  return { pairs: cleanPairs, seedOrder }
+      const preferredOrder =
+        preferredRankIndex(preferredRanks, a) - preferredRankIndex(preferredRanks, b)
+      if (preferredOrder !== 0) return preferredOrder
+
+      return compareQualifierWeakness(a, b)
+    })
+
+    return candidates[0] ?? null
+  }
+
+  const pairEntries: Array<[QualifierEntry, QualifierEntry | null]> = []
+  const addPair = (anchor: QualifierEntry, opponent: QualifierEntry | null) => {
+    removeEntry(anchor)
+    if (opponent) removeEntry(opponent)
+    pairEntries.push([anchor, opponent])
+  }
+
+  // First pass: group winners should preferably meet one of the best
+  // third-placed qualifiers. For 6x6 -> Top 16 this creates exactly the
+  // intended "1st vs 3rd" pairings while avoiding same-group rematches.
+  if (wildcardRanks.length > 0) {
+    const groupWinners = remaining
+      .filter((qualifier) => qualifier.rankInGroup === 1)
+      .sort(compareQualifierStrength)
+    groupWinners.forEach((winner) => {
+      if (pairEntries.length >= slotCount) return
+      if (!remaining.some((entry) => entry.playerId === winner.playerId)) return
+      const opponent = pickOpponent(winner, wildcardRanks, true)
+      if (opponent) addPair(winner, opponent)
+    })
+  }
+
+  while (remaining.length > 0 && pairEntries.length < slotCount) {
+    const anchor = remaining[0]
+    const preferredRanks =
+      anchor.rankInGroup === 1
+        ? [...wildcardRanks, 2]
+        : anchor.rankInGroup === 2
+          ? [1, 2, ...wildcardRanks]
+          : [1, 2, ...wildcardRanks]
+    const opponent = pickOpponent(anchor, preferredRanks, false)
+    addPair(anchor, opponent)
+  }
+
+  const pairs: Array<[string, string | null]> = pairEntries.map(([a, b]) => [
+    a.playerId,
+    b?.playerId ?? null
+  ])
+  const seedOrder = pairEntries.flatMap(([a, b]) => [a, b])
+
+  return { pairs, seedOrder }
 }
