@@ -181,7 +181,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useTournamentsStore } from '@/stores/tournamentsStore'
 import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -197,8 +197,45 @@ const statusFilter = ref<'all' | 'active' | 'finished'>('all')
 const inviteCode = ref('')
 const joinMessage = ref('')
 
+// Re-fetch whenever the auth user changes (especially when it transitions
+// from "not yet known" to "logged in"). Previously fetchMyTournaments only
+// ran in onMounted: if the supabase session resolution beat the component
+// mount, the call returned early because auth.session was still null,
+// leaving the list empty until the user closed the app and reopened it.
+watch(
+  () => auth.session?.user?.id ?? null,
+  (userId) => {
+    if (userId) void onlineTournamentsStore.fetchMyTournaments()
+  },
+  { immediate: true }
+)
+
+// Refresh on tab return as well — iOS PWA's setInterval-style polling is
+// flaky in the background, and a quick visibility check gives users a
+// hard guarantee that their list is current right after opening the app.
+const refreshOnReturn = () => {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  if (auth.session?.user) void onlineTournamentsStore.fetchMyTournaments()
+}
+
 onMounted(() => {
-  onlineTournamentsStore.fetchMyTournaments()
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', refreshOnReturn)
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', refreshOnReturn)
+    window.addEventListener('pageshow', refreshOnReturn)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', refreshOnReturn)
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', refreshOnReturn)
+    window.removeEventListener('pageshow', refreshOnReturn)
+  }
 })
 
 const modeLabel = (mode: string) => {
