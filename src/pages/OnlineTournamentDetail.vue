@@ -42,20 +42,6 @@
 
     <div class="px-4 sm:px-6 py-5 sm:py-6 space-y-5 sm:space-y-6">
       <div v-if="activeTab === 'info'" class="space-y-6">
-        <div class="bg-white border-2 border-border rounded-2xl p-6">
-          <h2 class="text-lg font-bold text-foreground mb-4">Turnier-Info</h2>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div
-              v-for="row in infoRows"
-              :key="row.label"
-              class="flex items-center justify-between bg-muted/30 border-2 border-border rounded-xl px-4 py-3"
-            >
-              <span class="text-sm font-semibold text-muted-foreground">{{ row.label }}</span>
-              <span class="text-sm font-bold text-foreground text-right">{{ row.value }}</span>
-            </div>
-          </div>
-        </div>
-
         <button
           v-if="isPlayerInTournament && pushStatus !== 'unsupported'"
           type="button"
@@ -119,6 +105,19 @@
           </span>
         </button>
 
+        <div class="bg-white border-2 border-border rounded-2xl p-6">
+          <h2 class="text-lg font-bold text-foreground mb-4">Turnier-Info</h2>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div
+              v-for="row in infoRows"
+              :key="row.label"
+              class="flex items-center justify-between bg-muted/30 border-2 border-border rounded-xl px-4 py-3"
+            >
+              <span class="text-sm font-semibold text-muted-foreground">{{ row.label }}</span>
+              <span class="text-sm font-bold text-foreground text-right">{{ row.value }}</span>
+            </div>
+          </div>
+        </div>
 
         <div class="bg-white border-2 border-border rounded-2xl p-6">
           <h3 class="text-lg font-bold text-foreground mb-3">Spiel-Format</h3>
@@ -466,7 +465,9 @@
           @generate="generateSchedule"
           @delete-player="confirmDeleteTournamentPlayer"
         />
+      </div>
 
+      <div v-else-if="activeTab === 'rankings'" class="space-y-5 sm:space-y-6">
         <div
           v-if="qualifierCount > 0"
           class="bg-primary/5 border-2 border-primary/20 rounded-2xl px-4 py-3 flex items-start gap-3"
@@ -627,7 +628,7 @@ const onlineStore = useOnlineTournamentsStore()
 const auth = useAuthStore()
 const gameStore = useGameStore()
 
-type TabKey = 'info' | 'matches' | 'groups' | 'knockout' | 'stats'
+type TabKey = 'info' | 'matches' | 'groups' | 'rankings' | 'knockout' | 'stats'
 const activeTab = ref<TabKey>('matches')
 
 const tournamentId = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id))
@@ -650,16 +651,17 @@ const tabs = computed<TabKey[]>(() => {
     return [...base, 'knockout', 'stats']
   }
   if (mode === 'round_robin') {
-    return [...base, 'groups', 'stats']
+    return [...base, 'rankings', 'stats']
   }
-  // combined → both phases as separate tabs
-  return [...base, 'groups', 'knockout', 'stats']
+  // combined → group composition, rankings table, KO bracket as separate tabs
+  return [...base, 'groups', 'rankings', 'knockout', 'stats']
 })
 
 const tabLabels = computed<Record<TabKey, string>>(() => ({
   info: 'Info',
   matches: 'Spielplan',
   groups: 'Gruppen',
+  rankings: 'Rangliste',
   knockout: 'K.O.-Phase',
   stats: 'Statistiken'
 }))
