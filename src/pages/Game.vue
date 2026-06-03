@@ -1,5 +1,15 @@
 <template>
-  <div class="h-[100dvh] flex flex-col bg-gradient-to-br from-background via-muted/30 to-background overflow-hidden">
+  <!--
+    On a real iPhone, #app already pads itself by the safe-area insets
+    (Dynamic Island top, home-indicator bottom). 100dvh would therefore
+    be safe-top + safe-bottom ≈ 93 px too tall and the keypad's bottom
+    row got pushed off-screen. We compute the actually-available content
+    height instead so the layout fits flush regardless of device.
+  -->
+  <div
+    class="flex flex-col bg-gradient-to-br from-background via-muted/30 to-background overflow-hidden"
+    style="height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));"
+  >
     <div v-if="matchFinished" class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-4 sm:px-6 py-10 sm:py-12">
       <div class="w-20 h-20 sm:w-24 sm:h-24 bg-dart-gold rounded-full flex items-center justify-center mb-6 shadow-xl animate-bounce">
         <i class="pi pi-trophy text-4xl text-white" />
