@@ -329,7 +329,7 @@
 
               <div class="space-y-3">
                 <div
-                  v-for="match in section.matches"
+                  v-for="match in visibleScheduleMatches(section)"
                   :key="match.id"
                   class="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white border-2 border-border rounded-xl px-4 py-4 text-left transition-all"
                   :class="match.status === 'in_progress' ? 'cursor-pointer hover:shadow-md hover:border-primary/60' : ''"
@@ -390,6 +390,22 @@
                   </div>
                 </div>
               </div>
+
+              <button
+                v-if="hiddenScheduleMatchCount(section) > 0"
+                type="button"
+                class="mt-3 w-full px-4 py-2.5 text-xs font-bold text-primary bg-white border-2 border-border rounded-xl hover:bg-muted/30 transition-colors flex items-center justify-center gap-1.5"
+                @click="toggleScheduleSection(section.key)"
+              >
+                <template v-if="expandedScheduleSections[section.key]">
+                  <i class="pi pi-chevron-up text-[10px]" />
+                  Weniger anzeigen
+                </template>
+                <template v-else>
+                  <i class="pi pi-chevron-down text-[10px]" />
+                  +{{ hiddenScheduleMatchCount(section) }} weitere Spiele
+                </template>
+              </button>
             </section>
           </div>
           <p v-if="matchActionError" class="text-xs text-destructive mt-3">
@@ -907,6 +923,21 @@ interface ScheduleSection {
   subtitle?: string
   matches: TournamentMatch[]
   isOwnGroup?: boolean
+  collapsible?: boolean
+}
+
+const SCHEDULE_MATCH_LIMIT = 5
+const expandedScheduleSections = ref<Record<string, boolean>>({})
+const toggleScheduleSection = (key: string) => {
+  expandedScheduleSections.value[key] = !expandedScheduleSections.value[key]
+}
+const visibleScheduleMatches = (section: ScheduleSection) => {
+  if (!section.collapsible || expandedScheduleSections.value[section.key]) return section.matches
+  return section.matches.slice(0, SCHEDULE_MATCH_LIMIT)
+}
+const hiddenScheduleMatchCount = (section: ScheduleSection) => {
+  if (!section.collapsible) return 0
+  return Math.max(0, section.matches.length - SCHEDULE_MATCH_LIMIT)
 }
 
 const sortMatchesChronologically = (entries: TournamentMatch[]) =>
@@ -946,7 +977,8 @@ const scheduleSections = computed<ScheduleSection[]>(() => {
         key: `own-group-${userGroup}`,
         title: `Deine Gruppe ${groupLabel(userGroup)}`,
         matches: sortMatchesChronologically(ownMatches),
-        isOwnGroup: true
+        isOwnGroup: true,
+        collapsible: true
       })
     }
   }
@@ -958,7 +990,8 @@ const scheduleSections = computed<ScheduleSection[]>(() => {
       sections.push({
         key: `group-${groupIndex}`,
         title: `Gruppe ${groupLabel(groupIndex)}`,
-        matches: sortMatchesChronologically(groupMatches)
+        matches: sortMatchesChronologically(groupMatches),
+        collapsible: true
       })
     })
 
