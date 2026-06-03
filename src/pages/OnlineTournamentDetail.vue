@@ -750,7 +750,17 @@ void refreshPushStatus()
 const groupCount = computed(() => tournament.value?.settings.groupCount ?? 1)
 const maxGroupCount = computed(() => (tournament.value?.mode === 'knockout' ? 1 : 32))
 const scheduleGenerated = computed(() => matches.value.length > 0)
-const qualifierCount = computed(() => (tournament.value?.mode === 'combined' ? 2 : 0))
+// How many slots per group qualify for the K.O. phase. With the new
+// koBracketSize setting this is no longer fixed at 2 — it's bracketSize /
+// groupCount (rounded up, so groups whose "best 3rds" also qualify still
+// get their 3rd row highlighted).
+const qualifierCount = computed(() => {
+  if (tournament.value?.mode !== 'combined') return 0
+  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
+  if (bracketSize <= 0) return 2
+  const groups = Math.max(1, groupCount.value)
+  return Math.ceil(bracketSize / groups)
+})
 const tournamentStartingScore = computed(() => tournament.value?.settings.startingScore ?? 501)
 const tournamentDescription = computed(() => tournament.value?.settings.description ?? '')
 const hasKnockoutRoundOverrides = computed(() => {
@@ -1223,13 +1233,24 @@ const showKnockoutBracket = computed(() => {
 const isCombined = computed(() => tournament.value?.mode === 'combined')
 const isKnockout = computed(() => tournament.value?.mode === 'knockout')
 
+// How many seed slots each group contributes to the bracket. With the new
+// koBracketSize the count is no longer fixed at 2 per group.
+const seedsPerGroup = computed(() => {
+  if (!isCombined.value) return 0
+  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
+  if (bracketSize <= 0) return 2
+  return Math.ceil(bracketSize / Math.max(1, groupCount.value))
+})
+
 const combinedSeedLabels = computed(() => {
   if (!isCombined.value) return []
   const labels: string[] = []
-  for (let index = 0; index < groupCount.value; index += 1) {
-    const label = groupLabel(index)
-    labels.push(`1. Gruppe ${label}`)
-    labels.push(`2. Gruppe ${label}`)
+  const perGroup = seedsPerGroup.value
+  for (let groupIdx = 0; groupIdx < groupCount.value; groupIdx += 1) {
+    const label = groupLabel(groupIdx)
+    for (let rank = 1; rank <= perGroup; rank += 1) {
+      labels.push(`${rank}. Gruppe ${label}`)
+    }
   }
   return labels
 })
@@ -1242,17 +1263,18 @@ const placeholderNameMap = computed(() => {
   combinedSeedLabels.value.forEach((label, index) => {
     map.set(`seed-${index}`, label)
   })
-  // Once a group is finished, swap its two placeholder seed slots for the
-  // real qualifier names. Layout is [1.A, 2.A, 1.B, 2.B, ...] — same
-  // ordering used by combinedSeedLabels.
+  // Once a group is finished, swap its placeholder seed slots for the
+  // real qualifier names. Layout is [1.A, 2.A, ..., 1.B, 2.B, ...] —
+  // same ordering used by combinedSeedLabels.
   if (isCombined.value) {
+    const perGroup = seedsPerGroup.value
     groupStandingsList.value.forEach((entry) => {
       if (!entry.isFinished) return
-      const seedBase = entry.index * 2
-      const first = entry.rows[0]
-      const second = entry.rows[1]
-      if (first) map.set(`seed-${seedBase}`, playerName(first.playerId))
-      if (second) map.set(`seed-${seedBase + 1}`, playerName(second.playerId))
+      const seedBase = entry.index * perGroup
+      for (let rank = 0; rank < perGroup; rank += 1) {
+        const row = entry.rows[rank]
+        if (row) map.set(`seed-${seedBase + rank}`, playerName(row.playerId))
+      }
     })
   }
   return map

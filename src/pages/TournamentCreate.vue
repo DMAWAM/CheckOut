@@ -166,6 +166,34 @@
               Mindestens 4 Spieler nötig, um 2 Gruppen zu bilden.
             </p>
           </div>
+
+          <div v-if="tournamentType === 'combined'" class="pt-2">
+            <label class="block text-sm font-semibold text-foreground mb-2">K.O.-Phase startet bei</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button
+                v-for="option in koBracketOptions"
+                :key="option.value"
+                type="button"
+                class="px-3 py-3 rounded-xl text-sm font-bold border-2 transition-all text-left"
+                :class="koBracketSize === option.value
+                  ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                  : 'bg-white border-border text-foreground'"
+                @click="koBracketSize = option.value"
+              >
+                <div>{{ option.label }}</div>
+                <div
+                  v-if="option.hint"
+                  class="text-[10px] font-semibold mt-0.5"
+                  :class="koBracketSize === option.value ? 'text-primary-foreground/80' : 'text-muted-foreground'"
+                >
+                  {{ option.hint }}
+                </div>
+              </button>
+            </div>
+            <p class="text-xs text-muted-foreground mt-2">
+              {{ koBracketSummary }}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -824,6 +852,32 @@ const tournamentScope = ref<'local' | 'online'>('local')
 const newPlayerName = ref('')
 const selectedPlayerIds = ref<string[]>([])
 const groupCount = ref(1)
+// 0 = legacy auto (top 2 per group). Otherwise the exact starting round size:
+// 16 = Achtelfinale, 8 = Viertelfinale, 4 = Halbfinale, 2 = Finale.
+const koBracketSize = ref<number>(0)
+const koBracketOptions = [
+  { value: 0, label: 'Auto', hint: 'Top 2 je Gruppe' },
+  { value: 16, label: 'Achtelfinale', hint: '16 Spieler' },
+  { value: 8, label: 'Viertelfinale', hint: '8 Spieler' },
+  { value: 4, label: 'Halbfinale', hint: '4 Spieler' },
+  { value: 2, label: 'Finale', hint: '2 Spieler' }
+]
+const koBracketSummary = computed(() => {
+  const size = koBracketSize.value
+  const groups = Math.max(1, groupCount.value)
+  if (size === 0) {
+    return 'Standard: die ersten zwei jeder Gruppe qualifizieren sich für die K.O.-Phase.'
+  }
+  const base = Math.floor(size / groups)
+  const remainder = size - base * groups
+  if (base <= 0) {
+    return `Zu wenige Gruppen für ${size} K.O.-Plätze (es können maximal ${groups} Erstplatzierte qualifizieren).`
+  }
+  if (remainder === 0) {
+    return `Top ${base} je Gruppe qualifizieren sich → ${size} Spieler in der K.O.-Phase.`
+  }
+  return `Top ${base} je Gruppe + die ${remainder} besten Gruppen-${base + 1}. → ${size} Spieler in der K.O.-Phase.`
+})
 const errorMessage = ref('')
 const tournamentDescription = ref('')
 
@@ -1159,7 +1213,11 @@ const createTournament = async () => {
           outByPhase: normalizedOutByPhase,
           description: descriptionValue,
           groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
-          startingScore: startingScore.value
+          startingScore: startingScore.value,
+          koBracketSize:
+            tournamentType.value === 'combined' && koBracketSize.value > 0
+              ? koBracketSize.value
+              : undefined
         }
       })
       router.push(`/tournaments/online/${id}`)
@@ -1181,7 +1239,11 @@ const createTournament = async () => {
       outByPhase: normalizedOutByPhase,
       description: descriptionValue,
       groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
-      startingScore: startingScore.value
+      startingScore: startingScore.value,
+      koBracketSize:
+        tournamentType.value === 'combined' && koBracketSize.value > 0
+          ? koBracketSize.value
+          : undefined
     },
     playerIds: selectedPlayerIds.value
   })

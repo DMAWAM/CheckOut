@@ -84,6 +84,13 @@ export interface Tournament {
     description?: string
     groupCount?: number
     startingScore?: number
+    /**
+     * Knockout bracket size: 2, 4, 8 or 16. Determines the number of
+     * qualifiers from the group phase (top-N per group, plus the best
+     * "next-rankers" if the bracket size doesn't divide evenly). Omitting
+     * or setting 0 falls back to the legacy behaviour of "top 2 per group".
+     */
+    koBracketSize?: number
   }
   status: TournamentStatus
 }

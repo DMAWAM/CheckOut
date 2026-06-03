@@ -15,6 +15,10 @@ import {
   buildKnockoutSeedPairs,
   generateRoundRobinRounds
 } from '@/domain/tournamentScheduler'
+import {
+  buildSeededKnockoutPairsAvoidingSameGroup,
+  computeQualifiers
+} from '@/domain/knockoutSeeding'
 import { useAuthStore } from '@/stores/authStore'
 import { createId } from '@/domain/id'
 
@@ -150,6 +154,7 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
           knockoutRounds?: Record<string, boolean>
         }
         groupCount?: number
+        koBracketSize?: number
         description?: string
         startingScore?: number
       }
@@ -773,34 +778,51 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
       if (rrMatches.some((match) => match.status !== 'finished')) return
 
       const groupCount = this.currentTournament.settings.groupCount ?? 1
-      const qualifiers: Array<{ playerId: string; points: number; wins: number; legsDiff: number; average: number }> = []
+      const standingsByGroup = new Map<number, ReturnType<typeof calculateStandingsFromData>>()
       for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
         const playerIds = this.players
           .filter((player) => (player.groupIndex ?? 0) === groupIndex)
           .map((player) => player.id)
-        const standings = calculateStandingsFromData({
-          playerIds,
-          matches: this.matches,
-          results: this.results,
-          phase: 'round_robin',
-          groupIndex
-        })
-        standings.slice(0, 2).forEach((row) => {
-          qualifiers.push({
-            playerId: row.playerId,
-            points: row.points,
-            wins: row.wins,
-            legsDiff: row.legsDiff,
-            average: row.average
+        standingsByGroup.set(
+          groupIndex,
+          calculateStandingsFromData({
+            playerIds,
+            matches: this.matches,
+            results: this.results,
+            phase: 'round_robin',
+            groupIndex
           })
-        })
+        )
       }
-      const seeded = qualifiers
-        .sort((a, b) => b.points - a.points || b.wins - a.wins || b.legsDiff - a.legsDiff || b.average - a.average)
-        .map((row) => row.playerId)
-      if (seeded.length < 2) return
 
-      const pairs = buildKnockoutSeedPairs(seeded)
+      const bracketSize = this.currentTournament.settings.koBracketSize
+      const qualifiers = computeQualifiers({
+        bracketSize,
+        groupCount,
+        standingsByGroup
+      })
+
+      if (qualifiers.length < 2) return
+
+      // Avoid same-group rematches in round 1 (the new seeding rule) when
+      // we have a configured bracket size. Without an explicit bracket
+      // size we keep the legacy "top 2 per group, simple seeding" path.
+      const useSeededPairs = bracketSize && bracketSize > 0
+      const pairs: Array<[string, string | null]> = useSeededPairs
+        ? buildSeededKnockoutPairsAvoidingSameGroup(qualifiers).pairs
+        : buildKnockoutSeedPairs(
+            qualifiers
+              .slice()
+              .sort(
+                (a, b) =>
+                  b.points - a.points ||
+                  b.wins - a.wins ||
+                  b.legsDiff - a.legsDiff ||
+                  b.average - a.average
+              )
+              .map((q) => q.playerId)
+          )
+
       let order = this.matches.length + 1
       const now = new Date().toISOString()
       const inserts: TournamentMatch[] = []
