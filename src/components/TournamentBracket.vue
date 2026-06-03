@@ -164,9 +164,9 @@ const matchNumber = (match: TournamentMatch) => {
 }
 
 const matchHeight = 104
-const innerPairGap = 24
+const innerPairGap = 32
 const pairHeight = matchHeight * 2 + innerPairGap
-const baseGap = 32
+const baseGap = 56
 
 const pairLayouts = computed(() => {
   const layouts: Array<{ tops: number[]; height: number }> = []
@@ -307,14 +307,14 @@ const championName = computed(() => {
 
 .bracket-grid {
   display: flex;
-  gap: 36px;
+  gap: 64px;
   min-width: max-content;
 }
 
 .bracket-round {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 28px;
   min-width: 280px;
 }
 

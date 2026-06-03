@@ -1317,26 +1317,38 @@ const combinedSeedLabels = computed(() => {
 
 const combinedSeedIds = computed(() => combinedSeedLabels.value.map((_, index) => `seed-${index}`))
 
+const allGroupsFinished = computed(() => {
+  if (!isCombined.value) return false
+  if (groupStandingsList.value.length === 0) return false
+  return groupStandingsList.value.every((entry) => entry.isFinished)
+})
+
 const placeholderNameMap = computed(() => {
   const map = new Map<string, string>()
-  // Default placeholders ("1. Gruppe A", "2. Gruppe A", ...)
+  // Default placeholders ("1. Gruppe A", "2. Gruppe A", "1. bester
+  // Drittplatzierter", ...)
   combinedSeedLabels.value.forEach((label, index) => {
     map.set(`seed-${index}`, label)
   })
-  // Once a group is finished, swap its placeholder seed slots for the
-  // real qualifier names. Layout is [1.A, 2.A, ..., 1.B, 2.B, ...] —
-  // same ordering used by combinedSeedLabels.
-  if (isCombined.value) {
-    const perGroup = directSeedsPerGroup.value
-    groupStandingsList.value.forEach((entry) => {
-      if (!entry.isFinished) return
-      const seedBase = entry.index * perGroup
-      for (let rank = 0; rank < perGroup; rank += 1) {
-        const row = entry.rows[rank]
-        if (row) map.set(`seed-${seedBase + rank}`, playerName(row.playerId))
-      }
-    })
+  if (!isCombined.value) return map
 
+  // Direct qualifier seats (rank 1..baseQualifiers per group) flip to the
+  // real name as soon as THAT group is done — their slot is guaranteed.
+  const perGroup = directSeedsPerGroup.value
+  groupStandingsList.value.forEach((entry) => {
+    if (!entry.isFinished) return
+    const seedBase = entry.index * perGroup
+    for (let rank = 0; rank < perGroup; rank += 1) {
+      const row = entry.rows[rank]
+      if (row) map.set(`seed-${seedBase + rank}`, playerName(row.playerId))
+    }
+  })
+
+  // Wildcard seats (e.g. the 4 best 3rd-placed in a 6x3 bracket): we
+  // cannot know who actually qualifies until EVERY group is done. So
+  // we keep them as "1. bester Drittplatzierter", etc. and only swap
+  // them for real names once the entire group phase has finished.
+  if (allGroupsFinished.value && wildcardSeedCount.value > 0) {
     const wildcardSeedBase = perGroup * groupCount.value
     const wildcardQualifiers = Object.entries(qualifiedPlayerStatus.value)
       .filter(([, status]) => status === 'wildcard')
