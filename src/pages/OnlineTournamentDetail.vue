@@ -79,43 +79,68 @@
       </div>
 
       <div v-else-if="activeTab === 'players'" class="space-y-4">
-        <div
+        <button
           v-if="isPlayerInTournament && pushStatus !== 'unsupported'"
-          class="bg-white border-2 border-border rounded-2xl p-4 sm:p-5 flex items-start gap-3"
+          type="button"
+          class="w-full bg-white border-2 border-border rounded-2xl p-4 sm:p-5 flex items-start gap-3 text-left transition-all"
+          :class="[
+            pushStatus === 'subscribed' ? 'border-primary/40' : '',
+            pushStatus === 'denied' ? 'opacity-70' : 'hover:shadow-md active:scale-[0.99]'
+          ]"
+          :disabled="pushBusy || pushStatus === 'denied'"
+          :aria-pressed="pushStatus === 'subscribed'"
+          @click="togglePush"
         >
-          <i class="pi pi-bell text-2xl text-primary shrink-0 mt-0.5" />
+          <i
+            class="text-2xl shrink-0 mt-0.5"
+            :class="pushStatus === 'subscribed' ? 'pi pi-bell text-primary' : 'pi pi-bell text-muted-foreground'"
+          />
           <div class="min-w-0 flex-1">
-            <div class="font-bold text-foreground">Benachrichtigungen</div>
+            <div class="font-bold text-foreground flex items-center gap-2 flex-wrap">
+              Benachrichtigungen
+              <span
+                v-if="pushStatus === 'subscribed'"
+                class="text-[10px] font-bold uppercase tracking-wide bg-primary/15 text-primary px-2 py-0.5 rounded-full"
+              >
+                Aktiv
+              </span>
+              <span
+                v-else-if="pushStatus === 'denied'"
+                class="text-[10px] font-bold uppercase tracking-wide bg-destructive/15 text-destructive px-2 py-0.5 rounded-full"
+              >
+                Blockiert
+              </span>
+              <span
+                v-else
+                class="text-[10px] font-bold uppercase tracking-wide bg-muted text-muted-foreground px-2 py-0.5 rounded-full"
+              >
+                Aus
+              </span>
+            </div>
             <p class="text-xs sm:text-sm text-muted-foreground mt-0.5">
               <span v-if="pushStatus === 'subscribed'">
-                Aktiv — wir pingen dich, sobald dein Spiel ansteht.
+                Du wirst gepingt sobald dein Spiel ansteht.
               </span>
               <span v-else-if="pushStatus === 'denied'">
                 Du hast Benachrichtigungen blockiert. Bitte in den Browser-Einstellungen freigeben.
               </span>
               <span v-else>
-                Lass dich pingen, sobald dein nächstes Spiel ansteht. Du musst die App nicht offen halten.
+                Tippe hier, um dich pingen zu lassen sobald dein Spiel ansteht.
               </span>
             </p>
             <p v-if="pushError" class="text-xs text-destructive mt-1">{{ pushError }}</p>
           </div>
-          <button
-            v-if="pushStatus === 'subscribed'"
-            class="shrink-0 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors"
-            @click="disablePush"
-            :disabled="pushBusy"
+          <!-- iOS-style switch — clearly shows on/off state -->
+          <span
+            class="shrink-0 mt-0.5 relative inline-flex items-center w-12 h-7 rounded-full transition-colors"
+            :class="pushStatus === 'subscribed' ? 'bg-primary' : 'bg-muted-foreground/30'"
           >
-            Deaktivieren
-          </button>
-          <button
-            v-else
-            class="shrink-0 px-3 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs sm:text-sm disabled:opacity-60"
-            @click="enablePush"
-            :disabled="pushBusy || pushStatus === 'denied'"
-          >
-            Aktivieren
-          </button>
-        </div>
+            <span
+              class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform"
+              :class="pushStatus === 'subscribed' ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </span>
+        </button>
 
         <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-6">
           <h2 class="text-lg font-bold text-foreground mb-4">Spieler</h2>
@@ -708,6 +733,16 @@ const disablePush = async () => {
     pushError.value = (err as Error).message
   } finally {
     pushBusy.value = false
+  }
+}
+
+const togglePush = () => {
+  if (pushBusy.value) return
+  if (pushStatus.value === 'denied') return
+  if (pushStatus.value === 'subscribed') {
+    void disablePush()
+  } else {
+    void enablePush()
   }
 }
 
@@ -1336,15 +1371,37 @@ const loadTournament = async (id?: string) => {
   generateError.value = ''
   generateInfo.value = ''
   deletePlayerTarget.value = null
-  await onlineStore.fetchTournamentDetail(id)
-  if (isAdmin.value) {
-    const code = await onlineStore.getOrCreateInvite(id)
-    inviteCode.value = code ?? ''
-    await onlineStore.fetchLoginCodes(id)
-  } else {
-    inviteCode.value = ''
+  try {
+    await onlineStore.fetchTournamentDetail(id)
+    if (isAdmin.value) {
+      const code = await onlineStore.getOrCreateInvite(id)
+      inviteCode.value = code ?? ''
+      await onlineStore.fetchLoginCodes(id)
+    } else {
+      inviteCode.value = ''
+    }
+  } catch (err) {
+    console.warn('loadTournament initial fetch failed', err)
+  } finally {
+    // Always start polling, even if the initial fetch failed. Otherwise a
+    // first-load error would leave the schedule frozen forever.
+    startTournamentPolling()
   }
-  startTournamentPolling()
+}
+
+// Manual refresh trigger users can hit if the auto-loop got paused (iOS
+// suspends JS aggressively in PWAs). Exposed as a button in the header.
+const manualRefreshing = ref(false)
+const manualRefresh = async () => {
+  if (!tournamentId.value || manualRefreshing.value) return
+  manualRefreshing.value = true
+  try {
+    await onlineStore.fetchTournamentDetail(tournamentId.value)
+  } catch (err) {
+    console.warn('manual refresh failed', err)
+  } finally {
+    manualRefreshing.value = false
+  }
 }
 
 // Auto-refresh the tournament every few seconds while the page is visible
