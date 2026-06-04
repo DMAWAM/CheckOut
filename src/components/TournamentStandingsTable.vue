@@ -1,8 +1,13 @@
 <template>
   <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-5 shadow-sm">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
       <h3 class="text-base sm:text-lg font-bold text-foreground">{{ title }}</h3>
-      <span class="text-xs font-semibold text-muted-foreground">{{ rows.length }} Spieler</span>
+      <div class="flex items-center gap-2 flex-wrap">
+        <!-- Optional extra header content (e.g. group-progress chip)
+             rendered to the right of the player count by the parent. -->
+        <slot name="header-extra" />
+        <span class="text-xs font-semibold text-muted-foreground">{{ rows.length }} Spieler</span>
+      </div>
     </div>
 
     <p class="md:hidden text-[11px] text-muted-foreground font-semibold mb-2">

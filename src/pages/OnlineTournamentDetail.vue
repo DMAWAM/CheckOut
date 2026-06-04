@@ -485,15 +485,23 @@
         </div>
 
         <div v-if="showGroupStandings" class="space-y-5 sm:space-y-6">
-          <div
+          <!-- The outer "Rangliste Gruppe X" row used to duplicate the
+               title that TournamentStandingsTable already renders inside
+               its own card header. Now the table is the single source of
+               truth for the group title; the match-progress chip moves
+               into the table header via the #header-extra slot so the
+               useful "X/Y Spiele" info is preserved without the visual
+               redundancy. -->
+          <TournamentStandingsTable
             v-for="group in groupStandingsList"
             :key="groupKey(group.index)"
-            class="space-y-2"
+            :title="group.title"
+            :rows="group.rows"
+            :player-name="playerName"
+            :qualifier-status="qualifiedPlayerStatus"
           >
-            <div class="flex items-center justify-between gap-3 px-1">
-              <h3 class="text-base sm:text-lg font-bold text-foreground">{{ group.title }}</h3>
+            <template v-if="group.totalMatches > 0" #header-extra>
               <span
-                v-if="group.totalMatches > 0"
                 class="shrink-0 text-[11px] font-bold rounded-full px-3 py-1"
                 :class="group.isFinished
                   ? 'bg-primary/15 text-primary'
@@ -507,14 +515,8 @@
                   {{ group.finishedMatches }}/{{ group.totalMatches }} Spiele
                 </template>
               </span>
-            </div>
-            <TournamentStandingsTable
-              :title="group.title"
-              :rows="group.rows"
-              :player-name="playerName"
-              :qualifier-status="qualifiedPlayerStatus"
-            />
-          </div>
+            </template>
+          </TournamentStandingsTable>
         </div>
         <TournamentStandingsTable
           v-if="showFinalStandings && tournament?.mode === 'round_robin'"
