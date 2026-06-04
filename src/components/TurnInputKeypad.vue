@@ -9,33 +9,52 @@
 
     <!-- 4×3 grid that grows to fill remaining height. Each button uses
          leading-none + a relative font-size so its glyph never collides
-         with the cell border, regardless of viewport. -->
+         with the cell border, regardless of viewport.
+
+         Haptic feel: every key has an `:active` state that *visibly*
+         flips its background + border for the few frames the finger is
+         down (transition-colors duration-75) and a small scale-95
+         squash on transform. Combined with the `triggerHaptic` call on
+         Android, this gives the keypad a tactile "I felt that tap"
+         response on mobile that the old hover-only styles lacked. -->
     <div class="flex-1 min-h-0 grid grid-cols-3 grid-rows-4 gap-2 mt-2">
       <button
         v-for="digit in digits"
         :key="digit"
-        class="bg-white border-2 border-border rounded-2xl text-3xl sm:text-4xl font-black text-foreground active:scale-95 transition-transform hover:shadow-lg hover:border-primary leading-none"
+        class="bg-white border-2 border-border rounded-2xl text-3xl sm:text-4xl font-black text-foreground leading-none
+               active:scale-95 active:bg-primary/15 active:border-primary active:text-primary active:shadow-inner
+               transition-[transform,background-color,border-color,color,box-shadow] duration-75
+               hover:shadow-lg hover:border-primary touch-manipulation select-none"
         :disabled="disabled"
         @click="appendDigit(digit)"
       >
         {{ digit }}
       </button>
       <button
-        class="bg-destructive text-destructive-foreground rounded-2xl text-base sm:text-lg font-black active:scale-95 transition-transform shadow-md leading-none"
+        class="bg-destructive text-destructive-foreground rounded-2xl text-base sm:text-lg font-black leading-none shadow-md
+               active:scale-95 active:bg-destructive/70 active:shadow-inner
+               transition-[transform,background-color,box-shadow] duration-75
+               touch-manipulation select-none"
         :disabled="disabled"
         @click="clear"
       >
         Clear
       </button>
       <button
-        class="bg-white border-2 border-border rounded-2xl text-3xl sm:text-4xl font-black text-foreground active:scale-95 transition-transform hover:shadow-lg hover:border-primary leading-none"
+        class="bg-white border-2 border-border rounded-2xl text-3xl sm:text-4xl font-black text-foreground leading-none
+               active:scale-95 active:bg-primary/15 active:border-primary active:text-primary active:shadow-inner
+               transition-[transform,background-color,border-color,color,box-shadow] duration-75
+               hover:shadow-lg hover:border-primary touch-manipulation select-none"
         :disabled="disabled"
         @click="appendDigit(0)"
       >
         0
       </button>
       <button
-        class="bg-primary text-primary-foreground rounded-2xl text-lg sm:text-xl font-black active:scale-95 transition-transform disabled:opacity-40 shadow-lg leading-none"
+        class="bg-primary text-primary-foreground rounded-2xl text-lg sm:text-xl font-black leading-none shadow-lg
+               active:scale-95 active:bg-primary/75 active:shadow-inner
+               transition-[transform,background-color,box-shadow] duration-75
+               disabled:opacity-40 touch-manipulation select-none"
         :disabled="disabled || !value"
         @click="submit"
       >
@@ -46,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { playClickSound, playClearSound, playOkSound } from '@/services/sounds'
+import { playClickSound, playClearSound, playOkSound, triggerHaptic } from '@/services/sounds'
 
 const props = defineProps<{ value: string; disabled?: boolean }>()
 const emit = defineEmits<{ (e: 'update:value', value: string): void; (e: 'submit'): void }>()
@@ -69,6 +88,7 @@ const appendDigit = (digit: number) => {
   const nextValue = props.value === '0' ? String(digit) : `${props.value}${digit}`
   emit('update:value', nextValue)
   playClickSound()
+  triggerHaptic(8)
 }
 
 const clear = () => {
@@ -78,11 +98,13 @@ const clear = () => {
   lastInputAt = now
   emit('update:value', '')
   playClearSound()
+  triggerHaptic(18)
 }
 
 const submit = () => {
   if (props.disabled || !props.value) return
   emit('submit')
   playOkSound()
+  triggerHaptic(15)
 }
 </script>

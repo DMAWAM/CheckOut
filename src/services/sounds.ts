@@ -148,3 +148,27 @@ export const playBustSound = () => {
   initSounds()
   playTone({ freq: [380, 90], durationMs: 280, type: 'sawtooth', volume: 0.1 })
 }
+
+// -----------------------------------------------------------------------------
+// Haptics
+// -----------------------------------------------------------------------------
+
+/**
+ * Tiny haptic pulse — a single short vibration that adds physical
+ * feedback to button taps on Android (and the few iOS browsers that
+ * expose navigator.vibrate). iOS Safari ignores it silently, which is
+ * fine: the visual `:active` state on the buttons still gives the user
+ * a clear "I pressed something" confirmation.
+ *
+ * Pass a different ms value for stronger actions (Clear / OK) so the
+ * Clear/Submit feel a bit "heavier" than a plain digit tap.
+ */
+export const triggerHaptic = (ms = 10) => {
+  if (typeof navigator === 'undefined') return
+  if (typeof navigator.vibrate !== 'function') return
+  try {
+    navigator.vibrate(ms)
+  } catch {
+    /* unsupported / blocked → silently ignore */
+  }
+}
