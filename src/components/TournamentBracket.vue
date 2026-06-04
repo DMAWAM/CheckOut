@@ -8,39 +8,39 @@
       <div v-else>
         <div class="bracket-grid">
           <div
-            v-for="(round, index) in rounds"
+            v-for="(round, roundIndex) in rounds"
             :key="`round-${round.round}`"
             class="bracket-round"
+            :class="roundIndex === rounds.length - 1 ? 'bracket-round--last' : ''"
           >
             <div class="bracket-round-title">
-              {{ roundLabel(index, rounds.length) }}
+              {{ roundLabel(roundIndex, rounds.length) }}
             </div>
-            <div class="bracket-matches" :style="roundContainerStyle(index)">
+            <div
+              class="bracket-round-body"
+              :style="{ height: `${roundHeight(roundIndex)}px` }"
+            >
+              <!-- Match cards -->
               <div
-                v-for="(pair, pairIndex) in roundPairs(round.matches)"
-                :key="`pair-${round.round}-${pairIndex}`"
-                class="bracket-pair"
-                :class="pair.length === 1 ? 'bracket-pair--single' : ''"
-                :style="pairStyle(index, pairIndex)"
+                v-for="(match, matchIndex) in round.matches"
+                :key="match.id"
+                class="bracket-match-wrap"
+                :class="roundIndex === rounds.length - 1 ? 'bracket-match-wrap--last' : ''"
+                :style="{ top: `${matchTop(roundIndex, matchIndex)}px` }"
               >
-                <div
-                  v-for="match in pair"
-                  :key="match.id"
-                  class="bracket-match"
-                >
-                  <div class="bracket-game-number">Spiel {{ matchNumber(match) }}</div>
+                <span class="bracket-match-number">{{ matchNumber(match) }}</span>
+                <div class="bracket-match">
                   <div class="bracket-row" :class="winnerClass(match, match.playerAId)">
                     <span class="bracket-player">{{ playerLabel(match.playerAId) }}</span>
-                    <span v-if="match.winnerId === match.playerAId" class="bracket-win">W</span>
+                    <span class="bracket-avg">{{ averageFor(match, match.playerAId) }}</span>
+                    <span class="bracket-legs">{{ legsFor(match, match.playerAId) }}</span>
                   </div>
                   <div class="bracket-row" :class="winnerClass(match, match.playerBId)">
                     <span class="bracket-player">{{ playerLabel(match.playerBId, match.playerAId) }}</span>
-                    <span v-if="match.winnerId === match.playerBId" class="bracket-win">W</span>
+                    <span class="bracket-avg">{{ averageFor(match, match.playerBId) }}</span>
+                    <span class="bracket-legs">{{ legsFor(match, match.playerBId) }}</span>
                   </div>
-                  <div class="bracket-meta">
-                    <span v-if="matchScore(match)" class="bracket-score">
-                      {{ matchScore(match) }}
-                    </span>
+                  <div class="bracket-match-footer">
                     <span class="bracket-status">{{ statusLabel(match.status) }}</span>
                     <button
                       v-if="showDetails && hasDetails(match)"
@@ -53,11 +53,31 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Pair connectors: vertical line + horizontal line to next round -->
+              <template v-if="roundIndex < rounds.length - 1">
+                <template v-for="pair in pairConnectors(roundIndex)" :key="`vline-${roundIndex}-${pair.index}`">
+                  <span
+                    class="bracket-vline"
+                    :style="{
+                      top: `${pair.top}px`,
+                      height: `${pair.height}px`,
+                    }"
+                  />
+                  <span
+                    class="bracket-hline-out"
+                    :style="{ top: `${pair.middle}px` }"
+                  />
+                </template>
+              </template>
             </div>
           </div>
           <div v-if="championName" class="bracket-champion">
             <div class="bracket-round-title">Champion</div>
-            <div class="bracket-champion-card">
+            <div
+              class="bracket-champion-card"
+              :style="{ marginTop: `${championOffset}px` }"
+            >
               {{ championName }}
             </div>
           </div>
@@ -78,11 +98,13 @@
                 <div class="compact-players">
                   <div class="compact-player" :class="winnerClass(match, match.playerAId)">
                     <span class="compact-name">{{ playerLabel(match.playerAId) }}</span>
-                    <span class="compact-score">{{ matchScoreParts(match).a }}</span>
+                    <span class="compact-avg">{{ averageFor(match, match.playerAId) }}</span>
+                    <span class="compact-score">{{ legsFor(match, match.playerAId) }}</span>
                   </div>
                   <div class="compact-player" :class="winnerClass(match, match.playerBId)">
                     <span class="compact-name">{{ playerLabel(match.playerBId, match.playerAId) }}</span>
-                    <span class="compact-score">{{ matchScoreParts(match).b }}</span>
+                    <span class="compact-avg">{{ averageFor(match, match.playerBId) }}</span>
+                    <span class="compact-score">{{ legsFor(match, match.playerBId) }}</span>
                   </div>
                 </div>
                 <button
@@ -163,75 +185,96 @@ const matchNumber = (match: TournamentMatch) => {
   return matchNumberMap.value.get(match.id) ?? '?'
 }
 
-const matchHeight = 104
-const innerPairGap = 32
-const pairHeight = matchHeight * 2 + innerPairGap
-const baseGap = 56
+// Layout constants. matchHeight is the visual height of one match card;
+// firstRoundGap is the vertical gap between consecutive matches in
+// round 1 (everything after follows from there because each subsequent
+// round's match centers vertically between its two feeder matches).
+const matchHeight = 116
+const firstRoundGap = 28
 
-const pairLayouts = computed(() => {
-  const layouts: Array<{ tops: number[]; height: number }> = []
+// Compute match-CENTER (not top) per match, propagated from round 1.
+// A round-k match at index i sits vertically between its two feeders
+// (round k-1 matches at indices 2i and 2i+1), which guarantees clean
+// L-shaped connectors with no overlaps.
+const matchCenters = computed(() => {
+  const out: number[][] = []
   rounds.value.forEach((round, roundIndex) => {
-    const pairs = roundPairs(round.matches)
     if (roundIndex === 0) {
-      const tops = pairs.map((_, idx) => idx * (pairHeight + baseGap))
-      const height = tops.length ? tops[tops.length - 1] + pairHeight : pairHeight
-      layouts.push({ tops, height })
+      const centers = round.matches.map(
+        (_, i) => matchHeight / 2 + i * (matchHeight + firstRoundGap)
+      )
+      out.push(centers)
       return
     }
-    const prev = layouts[roundIndex - 1]
-    const prevCenters = prev.tops.map((top) => top + pairHeight / 2)
-    const tops: number[] = []
-    for (let i = 0; i < pairs.length; i += 1) {
-      const left = prevCenters[i * 2]
-      const right = prevCenters[i * 2 + 1] ?? left
-      const center = (left + right) / 2
-      tops.push(center - pairHeight / 2)
-    }
-    const height = tops.length ? tops[tops.length - 1] + pairHeight : pairHeight
-    layouts.push({ tops, height })
+    const prev = out[roundIndex - 1]
+    const centers = round.matches.map((_, i) => {
+      const a = prev[i * 2] ?? 0
+      const b = prev[i * 2 + 1] ?? a
+      return (a + b) / 2
+    })
+    out.push(centers)
   })
-  return layouts
+  return out
 })
 
-const roundContainerStyle = (index: number) => {
-  const layout = pairLayouts.value[index]
-  if (!layout) return {}
-  return { height: `${layout.height}px` }
+const matchTop = (roundIndex: number, matchIndex: number) =>
+  (matchCenters.value[roundIndex]?.[matchIndex] ?? 0) - matchHeight / 2
+
+const roundHeight = (roundIndex: number) => {
+  const centers = matchCenters.value[roundIndex] ?? []
+  if (centers.length === 0) return matchHeight
+  return Math.max(...centers) + matchHeight / 2
 }
 
-const pairStyle = (roundIndex: number, pairIndex: number) => {
-  const layout = pairLayouts.value[roundIndex]
-  const top = layout?.tops[pairIndex] ?? 0
-  return { top: `${top}px` }
+// Pair-connector geometry: for every pair (m1, m2) in round k that
+// feeds a round-(k+1) match, we draw a single vertical line from
+// m1's center to m2's center, plus a short horizontal line at the
+// midpoint going right into the next round. The match's own
+// outgoing half-line on the right is rendered via CSS pseudo-element.
+const pairConnectors = (roundIndex: number) => {
+  const centers = matchCenters.value[roundIndex] ?? []
+  const pairs: Array<{ index: number; top: number; height: number; middle: number }> = []
+  for (let i = 0; i < centers.length; i += 2) {
+    const a = centers[i]
+    const b = centers[i + 1] ?? a
+    const top = Math.min(a, b)
+    const bottom = Math.max(a, b)
+    pairs.push({ index: i / 2, top, height: bottom - top, middle: (a + b) / 2 })
+  }
+  return pairs
 }
 
-const matchScore = (match: TournamentMatch) => {
+// Push the Champion card down so it visually aligns with the centre
+// of the final match (which itself centres between the two semifinals).
+const championOffset = computed(() => {
+  const last = rounds.value[rounds.value.length - 1]
+  if (!last || last.matches.length === 0) return 0
+  const center = matchCenters.value[rounds.value.length - 1]?.[0] ?? 0
+  return Math.max(0, center - matchHeight / 2)
+})
+
+const statFor = (match: TournamentMatch, playerId: string) => {
+  if (!playerId) return undefined
   const result = resultsByMatch.value.get(match.id)
-  if (!result) return ''
-  const statA = result.stats.find((stat) => stat.playerId === match.playerAId)
-  const statB = result.stats.find((stat) => stat.playerId === match.playerBId)
-  if (!statA || !statB) return ''
-  return `${statA.legsWon}:${statB.legsWon}`
+  if (!result) return undefined
+  return result.stats.find((stat) => stat.playerId === playerId)
 }
 
-const matchScoreParts = (match: TournamentMatch) => {
-  const score = matchScore(match)
-  if (!score) return { a: '-', b: '-' }
-  const [a, b] = score.split(':')
-  return { a: a ?? '-', b: b ?? '-' }
+const legsFor = (match: TournamentMatch, playerId: string) => {
+  const stat = statFor(match, playerId)
+  if (!stat) return '-'
+  return String(stat.legsWon)
+}
+
+const averageFor = (match: TournamentMatch, playerId: string) => {
+  const stat = statFor(match, playerId)
+  if (!stat) return ''
+  if (stat.average <= 0) return ''
+  return stat.average.toFixed(1)
 }
 
 const hasDetails = (match: TournamentMatch) =>
   Boolean(resultsByMatch.value.get(match.id)) || match.status === 'in_progress'
-
-const roundPairs = (matches: TournamentMatch[]) => {
-  const pairs: TournamentMatch[][] = []
-  for (let index = 0; index < matches.length; index += 2) {
-    const pair = [matches[index], matches[index + 1]].filter(Boolean) as TournamentMatch[]
-    pairs.push(pair)
-  }
-  return pairs
-}
 
 const roundLabel = (index: number, total: number) => {
   const firstRound = rounds.value[0]
@@ -258,7 +301,7 @@ const roundStatus = (matches: TournamentMatch[]) => {
 
 const winnerClass = (match: TournamentMatch, playerId: string) => {
   if (!match.winnerId) return 'bracket-row--neutral'
-  return match.winnerId === playerId ? 'bracket-row--winner' : 'bracket-row--neutral'
+  return match.winnerId === playerId ? 'bracket-row--winner' : 'bracket-row--loser'
 }
 
 const playerLabel = (playerId: string, fallbackId?: string) => {
@@ -284,6 +327,10 @@ const championName = computed(() => {
 
 <style scoped>
 .bracket-wrapper {
+  --match-width: 260px;
+  --column-gap: 96px;
+  --line-color: rgba(148, 163, 184, 0.4);
+  --line-thickness: 2px;
   background: linear-gradient(140deg, #0f172a 0%, #111827 40%, #1f2937 100%);
   border-radius: 20px;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -291,31 +338,38 @@ const championName = computed(() => {
 }
 
 .bracket-card {
-  padding: 16px;
+  padding: 20px 24px 28px;
   min-width: max-content;
   background-image:
-    radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 80% 10%, rgba(251, 191, 36, 0.12) 0%, transparent 45%);
+    radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.10) 0%, transparent 45%),
+    radial-gradient(circle at 80% 10%, rgba(251, 191, 36, 0.10) 0%, transparent 50%);
 }
 
 .bracket-title {
   font-size: 18px;
   font-weight: 700;
   color: #e2e8f0;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .bracket-grid {
   display: flex;
-  gap: 64px;
+  align-items: flex-start;
   min-width: max-content;
 }
 
 .bracket-round {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  min-width: 280px;
+  /* Width includes the column gap on the right so connector lines can
+     live in the same coordinate system as the match card. The last
+     round drops the trailing gap (no further round to connect to). */
+  width: calc(var(--match-width) + var(--column-gap));
+  flex-shrink: 0;
+}
+
+.bracket-round--last {
+  width: var(--match-width);
 }
 
 .bracket-round-title {
@@ -323,72 +377,200 @@ const championName = computed(() => {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.7);
+  color: rgba(226, 232, 240, 0.65);
+  margin-bottom: 16px;
 }
 
-.bracket-matches {
+.bracket-round-body {
   position: relative;
-  min-width: 280px;
-}
-
-.bracket-pair {
-  position: absolute;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding-right: 36px;
 }
 
-.bracket-pair::before {
-  content: '';
+.bracket-match-wrap {
   position: absolute;
-  right: 20px;
-  top: 34px;
-  bottom: 34px;
-  width: 2px;
-  background: rgba(226, 232, 240, 0.18);
+  left: 0;
+  width: var(--match-width);
+  height: 116px;
 }
 
-.bracket-pair::after {
+/* Half-line going right out of the match card to the vertical
+   connector at column-gap/2. */
+.bracket-match-wrap::after {
   content: '';
   position: absolute;
-  right: 0;
+  left: 100%;
   top: 50%;
-  width: 34px;
-  height: 2px;
-  background: rgba(226, 232, 240, 0.18);
+  width: calc(var(--column-gap) / 2);
+  height: var(--line-thickness);
+  background: var(--line-color);
+  transform: translateY(-50%);
 }
 
-.bracket-pair--single::before {
+.bracket-match-wrap--last::after {
   display: none;
 }
 
-.bracket-pair--single {
-  min-height: 232px;
+.bracket-match-number {
+  position: absolute;
+  top: 8px;
+  left: -22px;
+  width: 18px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.55);
+  letter-spacing: 0.04em;
 }
 
 .bracket-match {
   position: relative;
   background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 16px;
-  padding: 14px 14px 18px;
-  min-height: 104px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  padding: 8px 10px 6px;
+  height: 116px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   backdrop-filter: blur(6px);
 }
 
-.bracket-game-number {
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  background: rgba(15, 23, 42, 0.9);
+.bracket-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  min-height: 32px;
+}
+
+.bracket-player {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-avg {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.55);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+}
+
+.bracket-legs {
+  font-size: 14px;
+  font-weight: 800;
   color: rgba(226, 232, 240, 0.85);
+  font-variant-numeric: tabular-nums;
+  min-width: 16px;
+  text-align: right;
+}
+
+.bracket-row--neutral {
+  background: rgba(15, 23, 42, 0.45);
+  border-color: rgba(148, 163, 184, 0.15);
+}
+
+.bracket-row--winner {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.bracket-row--winner .bracket-player,
+.bracket-row--winner .bracket-legs {
+  color: #bbf7d0;
+}
+
+.bracket-row--loser {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.bracket-row--loser .bracket-player,
+.bracket-row--loser .bracket-avg,
+.bracket-row--loser .bracket-legs {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.bracket-match-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding: 0 2px;
+}
+
+.bracket-status {
   font-size: 10px;
   font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(226, 232, 240, 0.45);
+}
+
+.bracket-details {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(191, 219, 254, 0.85);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.bracket-details:hover {
+  color: #93c5fd;
+}
+
+/* Vertical connector between the two feeder matches of a pair.
+   Positioned at X = match width + column-gap/2. */
+.bracket-vline {
+  position: absolute;
+  left: calc(var(--match-width) + var(--column-gap) / 2);
+  width: var(--line-thickness);
+  background: var(--line-color);
+  transform: translateX(-50%);
+}
+
+/* Horizontal half-line from the vertical connector continuing into
+   the next round's match card. */
+.bracket-hline-out {
+  position: absolute;
+  left: calc(var(--match-width) + var(--column-gap) / 2);
+  width: calc(var(--column-gap) / 2);
+  height: var(--line-thickness);
+  background: var(--line-color);
+  transform: translateY(-50%);
+}
+
+.bracket-champion {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  margin-left: 16px;
+}
+
+.bracket-champion-card {
+  padding: 18px 22px;
+  border-radius: 16px;
+  border: 2px solid rgba(34, 197, 94, 0.6);
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
+  font-weight: 700;
+  text-align: center;
 }
 
 .bracket-compact {
@@ -464,21 +646,56 @@ const championName = computed(() => {
 }
 
 .compact-player {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   font-size: 13px;
   color: #e2e8f0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .compact-name {
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-avg {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.55);
+  font-variant-numeric: tabular-nums;
 }
 
 .compact-score {
-  font-weight: 700;
-  color: rgba(226, 232, 240, 0.8);
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(226, 232, 240, 0.85);
+  font-variant-numeric: tabular-nums;
+  min-width: 16px;
+  text-align: right;
+}
+
+.compact-player.bracket-row--winner {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.compact-player.bracket-row--winner .compact-name,
+.compact-player.bracket-row--winner .compact-score {
+  color: #bbf7d0;
+}
+
+.compact-player.bracket-row--loser .compact-name,
+.compact-player.bracket-row--loser .compact-avg,
+.compact-player.bracket-row--loser .compact-score {
+  color: rgba(226, 232, 240, 0.55);
 }
 
 .compact-details {
@@ -500,125 +717,9 @@ const championName = computed(() => {
   }
 }
 
-.bracket-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.5);
-}
-
-.bracket-row + .bracket-row {
-  margin-top: 8px;
-}
-
-.bracket-player {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e2e8f0;
-  line-height: 1.3;
-}
-
-.bracket-win {
-  font-size: 11px;
-  font-weight: 700;
-  color: #22c55e;
-}
-
-.bracket-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-  padding: 4px 2px 0;
-}
-
-.bracket-status {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(226, 232, 240, 0.55);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.bracket-score {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(251, 191, 36, 0.9);
-}
-
-.bracket-details {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(191, 219, 254, 0.9);
-}
-
-.bracket-details:hover {
-  color: #93c5fd;
-}
-
-.bracket-champion {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-  min-width: 240px;
-}
-
-.bracket-champion-card {
-  padding: 20px 24px;
-  border-radius: 18px;
-  border: 2px solid rgba(34, 197, 94, 0.6);
-  background: rgba(34, 197, 94, 0.12);
-  color: #bbf7d0;
-  font-weight: 700;
-  text-align: center;
-}
-
-.bracket-row--neutral {
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(148, 163, 184, 0.15);
-}
-
-.bracket-row--winner {
-  background: rgba(34, 197, 94, 0.18);
-  border: 1px solid rgba(34, 197, 94, 0.65);
-}
-
 @media (max-width: 640px) {
   .bracket-card {
     padding: 16px;
-  }
-
-  .bracket-round {
-    min-width: 220px;
-  }
-
-  .bracket-match {
-    padding: 16px;
-    min-height: unset;
-  }
-
-  .bracket-row {
-    padding: 10px 12px;
-  }
-
-  .bracket-meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    margin-top: 12px;
-  }
-
-  .bracket-status,
-  .bracket-score,
-  .bracket-details {
-    font-size: 12px;
   }
 }
 </style>

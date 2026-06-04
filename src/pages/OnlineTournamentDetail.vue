@@ -1241,11 +1241,27 @@ const qualifiedPlayerStatus = computed<Record<string, QualifierStatus>>(() => {
     standingsByGroup
   })
 
-  return qualifiers.reduce<Record<string, QualifierStatus>>((acc, qualifier) => {
-    acc[qualifier.playerId] =
-      qualifier.rankInGroup <= baseQualifiers ? 'direct' : 'wildcard'
-    return acc
-  }, {})
+  const status: Record<string, QualifierStatus> = {}
+  qualifiers.forEach((q) => {
+    status[q.playerId] = q.rankInGroup <= baseQualifiers ? 'direct' : 'wildcard'
+  })
+
+  // Snapshot view of the wildcard cusp: the rank just below the direct
+  // cutoff (typically rank 3 when the top 2 of each group qualify
+  // directly). We always colour these players gold, regardless of
+  // whether the current bracket configuration actually produces
+  // wildcard slots — same principle as ranks 1 and 2 being marked
+  // green in every group. This makes it visible at a glance who is
+  // currently best positioned to qualify via the wildcard tier.
+  const cuspRank = baseQualifiers + 1
+  standingsByGroup.forEach((rows) => {
+    const cuspRow = rows[cuspRank - 1]
+    if (cuspRow && status[cuspRow.playerId] === undefined) {
+      status[cuspRow.playerId] = 'wildcard'
+    }
+  })
+
+  return status
 })
 
 const hasKnockoutQualifiers = computed(() => Object.keys(qualifiedPlayerStatus.value).length > 0)
