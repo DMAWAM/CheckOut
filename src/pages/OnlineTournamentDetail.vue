@@ -1083,8 +1083,18 @@ const liveMatch = computed(() => matches.value.find((match) => match.id === live
 
 const fetchLiveSnapshot = async () => {
   if (!liveMatchId.value) return
-  liveLoading.value = true
-  liveError.value = ''
+  // Only show the "Lade Live-Daten ..." placeholder on the very first
+  // fetch (when there is no snapshot yet). For every subsequent poll
+  // we keep the existing scoreboard on screen and swap in the new
+  // values once they arrive — Vue's diffing then updates only the
+  // changed numbers, so the user sees a smooth in-place update
+  // instead of the modal flickering through a loading state every
+  // 4 seconds.
+  const isInitialLoad = !liveSnapshot.value
+  if (isInitialLoad) {
+    liveLoading.value = true
+    liveError.value = ''
+  }
   try {
     // Refresh tournament data in parallel so the spectator's matches list
     // / standings / leaderboard pick up the new state (otherwise the
@@ -1099,6 +1109,9 @@ const fetchLiveSnapshot = async () => {
     const snap = await onlineStore.fetchLiveState(liveMatchId.value)
     await detailRefreshPromise
     liveSnapshot.value = snap
+    // A successful poll always clears any stale error banner from a
+    // prior failed attempt.
+    liveError.value = ''
 
     // If the match is now finished on the server, auto-close the live
     // modal so the spectator sees the finished result instead of staring
@@ -1109,9 +1122,17 @@ const fetchLiveSnapshot = async () => {
     }
   } catch (err) {
     console.warn(err)
-    liveError.value = 'Live-Daten konnten nicht geladen werden.'
+    // On refresh failures we keep the last good snapshot on screen and
+    // log it; surfacing a destructive error banner would just flash for
+    // the user every time the network hiccups. Initial-load failures
+    // still surface the error since there is no fallback to show.
+    if (isInitialLoad) {
+      liveError.value = 'Live-Daten konnten nicht geladen werden.'
+    }
   } finally {
-    liveLoading.value = false
+    if (isInitialLoad) {
+      liveLoading.value = false
+    }
   }
 }
 
