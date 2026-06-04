@@ -149,9 +149,14 @@ const categories = computed<Category[]>(() => [
     key: 'checkout',
     title: 'Checkout Quote',
     subtitle: 'Treffer auf Checkout',
-    rows: sortDesc((row) => row.checkoutRate),
-    value: (row: LeaderboardRow) => `${row.checkoutRate.toFixed(0)}%`,
-    detail: (row: LeaderboardRow) => `${row.checkoutHits}/${row.checkoutAttempts}`
+    // Players with 0 attempts (e.g. only played single-out matches)
+    // sort last by ranking value 0; their value renders "—" instead
+    // of a misleading "0%" so the metric stays honest.
+    rows: sortDesc((row) => (row.checkoutAttempts > 0 ? row.checkoutRate : -1)),
+    value: (row: LeaderboardRow) =>
+      row.checkoutAttempts === 0 ? '—' : `${row.checkoutRate.toFixed(0)}%`,
+    detail: (row: LeaderboardRow) =>
+      row.checkoutAttempts === 0 ? 'Kein Double-Out' : `${row.checkoutHits}/${row.checkoutAttempts}`
   },
   {
     key: 'high-finish',

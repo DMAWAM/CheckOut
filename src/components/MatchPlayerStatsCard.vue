@@ -31,9 +31,20 @@
       </div>
       <div class="bg-dart-gold/10 rounded-xl p-4 text-center">
         <div class="text-sm font-semibold text-muted-foreground">Checkout %</div>
-        <div class="text-3xl font-black text-dart-gold">{{ stat.checkoutRate.toFixed(0) }}%</div>
+        <div class="text-3xl font-black text-dart-gold">
+          <!-- No attempts → either single-out match (concept doesn't
+               apply) or the player never reached a checkout. Show "—"
+               instead of a misleading 0%. -->
+          <template v-if="stat.checkoutAttempts === 0">—</template>
+          <template v-else>{{ stat.checkoutRate.toFixed(0) }}%</template>
+        </div>
         <div class="text-xs text-muted-foreground mt-1">
-          {{ stat.checkoutHits }}/{{ stat.checkoutAttempts }} · Darts auf Doppel: {{ stat.doubleDarts }}
+          <template v-if="stat.checkoutAttempts === 0">
+            Kein Double-Out
+          </template>
+          <template v-else>
+            {{ stat.checkoutHits }}/{{ stat.checkoutAttempts }} · Darts auf Doppel: {{ stat.doubleDarts }}
+          </template>
         </div>
       </div>
     </div>

@@ -93,6 +93,9 @@ import type { MatchFormat, Player } from '@/domain/models'
 interface PlayerStats {
   average: number
   checkoutRate: number
+  // Optional: when the caller knows attempts is 0 (e.g. single-out
+  // match), the scoreboard renders "—" instead of a misleading "0%".
+  checkoutAttempts?: number
 }
 
 const props = defineProps<{
@@ -113,7 +116,12 @@ const formatAverage = (playerId: string) => {
 }
 
 const formatCheckout = (playerId: string) => {
-  const rate = props.statsByPlayer?.[playerId]?.checkoutRate ?? 0
+  const entry = props.statsByPlayer?.[playerId]
+  // When the underlying calculator reports 0 attempts (single-out
+  // match, or no checkout reached yet) we render an em-dash rather
+  // than a stale "0%".
+  if (entry?.checkoutAttempts === 0) return '—'
+  const rate = entry?.checkoutRate ?? 0
   return `${Math.round(rate)}%`
 }
 

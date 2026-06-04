@@ -519,7 +519,7 @@ export const useGameStore = defineStore('game', {
         players: this.players.map((player) => ({ id: player.id, name: player.name })),
         stats: this.players.map((player) => {
           const turns = this.turns.filter((turn) => turn.playerId === player.id)
-          const stats = calculateMatchPlayerStats(turns)
+          const stats = calculateMatchPlayerStats(turns, this.match?.doubleOut ?? true)
           const legsWon = legWinsByPlayer[player.id] ?? 0
           const legsLost = Math.max(totalLegs - legsWon, 0)
           return {

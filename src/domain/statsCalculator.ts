@@ -28,13 +28,24 @@ export interface MatchPlayerStats {
   bestLegDarts: number
 }
 
-export const calculateBasicStats = (turns: Turn[]): BasicStats => {
+// Checkout-% is only a meaningful skill metric in double-out matches:
+// the player has to land on a specific double to finish the leg, so
+// "attempts" and "hits" measure something real. In single-out matches
+// any dart that drops the remaining score to 0 wins the leg, so the
+// concept doesn't apply — counting them would yield misleading numbers
+// like "0% on 0/3" for a player who never aimed at a double in the
+// first place. Pass `doubleOut` and the calculator returns zero
+// checkout counters when the match wasn't played to a double, which
+// the UI then renders as "—" instead of "0%".
+export const calculateBasicStats = (turns: Turn[], doubleOut = true): BasicStats => {
   const totalPoints = turns.reduce((sum, turn) => sum + (turn.bust ? 0 : turn.points), 0)
   const totalDarts = turns.reduce((sum, turn) => sum + turn.dartsThrown, 0)
   const average3Dart = totalDarts === 0 ? 0 : (totalPoints / totalDarts) * 3
   const highestScore = turns.reduce((max, turn) => Math.max(max, turn.points), 0)
-  const checkoutAttempts = turns.filter((turn) => turn.startedScore <= 170).length
-  const checkoutHits = turns.filter((turn) => turn.checkoutHit).length
+  const checkoutAttempts = doubleOut
+    ? turns.filter((turn) => turn.startedScore <= 170).length
+    : 0
+  const checkoutHits = doubleOut ? turns.filter((turn) => turn.checkoutHit).length : 0
   const checkoutPercentage = checkoutAttempts === 0 ? 0 : checkoutHits / checkoutAttempts
   const highestCheckout = turns.reduce((max, turn) => Math.max(max, turn.checkoutValue ?? 0), 0)
 
@@ -50,17 +61,24 @@ export const calculateBasicStats = (turns: Turn[]): BasicStats => {
   }
 }
 
-export const calculateMatchPlayerStats = (turns: Turn[]): MatchPlayerStats => {
+export const calculateMatchPlayerStats = (turns: Turn[], doubleOut = true): MatchPlayerStats => {
   const totalPoints = turns.reduce((sum, turn) => sum + (turn.bust ? 0 : turn.points), 0)
   const totalDarts = turns.reduce((sum, turn) => sum + turn.dartsThrown, 0)
   const average = totalDarts === 0 ? 0 : (totalPoints / totalDarts) * 3
-  const checkoutAttempts = turns.filter((turn) => turn.startedScore <= 170).length
-  const checkoutHits = turns.filter((turn) => turn.checkoutHit).length
+  // Single-out → no checkout-% (see header comment). doubleDarts counts
+  // darts thrown in the double-zone score range (≤40 or =50); also
+  // meaningless without a double-out rule, so we zero it out too.
+  const checkoutAttempts = doubleOut
+    ? turns.filter((turn) => turn.startedScore <= 170).length
+    : 0
+  const checkoutHits = doubleOut ? turns.filter((turn) => turn.checkoutHit).length : 0
   const checkoutRate = checkoutAttempts === 0 ? 0 : (checkoutHits / checkoutAttempts) * 100
-  const doubleDarts = turns.reduce((sum, turn) => {
-    const isDoubleZone = turn.startedScore <= 40 || turn.startedScore === 50
-    return isDoubleZone ? sum + turn.dartsThrown : sum
-  }, 0)
+  const doubleDarts = doubleOut
+    ? turns.reduce((sum, turn) => {
+        const isDoubleZone = turn.startedScore <= 40 || turn.startedScore === 50
+        return isDoubleZone ? sum + turn.dartsThrown : sum
+      }, 0)
+    : 0
   // Disjoint buckets: every aufnahme is counted in exactly ONE band. A 140
   // counts only in count140Plus, not also in count100Plus. The labels stay
   // "100+ / 140+" out of dart-culture habit, but the numbers are now

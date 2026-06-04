@@ -388,13 +388,17 @@ const plausibleDartCounts = computed<Array<1 | 2 | 3>>(() => {
 })
 
 const statsByPlayer = computed(() => {
-  const statsMap: Record<string, { average: number; checkoutRate: number }> = {}
+  const statsMap: Record<
+    string,
+    { average: number; checkoutRate: number; checkoutAttempts: number }
+  > = {}
   for (const player of game.players) {
     const turns = game.turns.filter((turn) => turn.playerId === player.id)
-    const stats = calculateBasicStats(turns)
+    const stats = calculateBasicStats(turns, game.match?.doubleOut ?? true)
     statsMap[player.id] = {
       average: Math.round(stats.average3Dart * 10) / 10,
-      checkoutRate: stats.checkoutPercentage * 100
+      checkoutRate: stats.checkoutPercentage * 100,
+      checkoutAttempts: stats.checkoutAttempts
     }
   }
   return statsMap
@@ -432,7 +436,7 @@ const matchStats = computed(() => {
 
   return game.players.map((player) => {
     const turns = game.turns.filter((turn) => turn.playerId === player.id)
-    const stats = calculateMatchPlayerStats(turns)
+    const stats = calculateMatchPlayerStats(turns, game.match?.doubleOut ?? true)
     const legsWon = legWinsByPlayer[player.id] ?? 0
     const legsLost = Math.max(totalLegs - legsWon, 0)
 

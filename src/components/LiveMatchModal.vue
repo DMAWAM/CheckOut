@@ -88,14 +88,18 @@ const headerTitle = computed(() => {
 })
 
 const statsByPlayer = computed(() => {
-  const map: Record<string, { average: number; checkoutRate: number }> = {}
+  const map: Record<
+    string,
+    { average: number; checkoutRate: number; checkoutAttempts: number }
+  > = {}
   if (!props.snapshot) return map
   players.value.forEach((player) => {
     const turns = props.snapshot?.turns.filter((turn) => turn.playerId === player.id) ?? []
-    const stats = calculateMatchPlayerStats(turns)
+    const stats = calculateMatchPlayerStats(turns, props.snapshot?.match.doubleOut ?? true)
     map[player.id] = {
       average: Math.round(stats.average * 10) / 10,
-      checkoutRate: stats.checkoutRate
+      checkoutRate: stats.checkoutRate,
+      checkoutAttempts: stats.checkoutAttempts
     }
   })
   return map
