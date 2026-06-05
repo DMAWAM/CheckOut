@@ -149,13 +149,13 @@
           </ul>
         </section>
 
-        <!-- Bracket panel -->
-        <section v-else-if="activePanel === 'bracket'" class="space-y-5 sm:space-y-7">
-          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">K.O.-Baum</h2>
+        <!-- Bracket panel (own slide, edge-to-edge so the whole tree fits) -->
+        <section v-else-if="activePanel === 'bracket'" class="space-y-3 sm:space-y-4">
+          <h2 class="text-2xl sm:text-4xl font-black tracking-tight">K.O.-Baum</h2>
           <div class="public-card-light">
             <TournamentBracket
               :matches="knockoutMatches"
-              :player-name="playerName"
+              :player-name="bracketPlayerName"
               :results="resultsAsDomain"
               :show-details="false"
               title=""
@@ -194,6 +194,12 @@ import TournamentBracket from '@/components/TournamentBracket.vue'
 import PublicLiveMatchCard from '@/components/PublicLiveMatchCard.vue'
 import { calculateLeaderboardsFromData, calculateStandingsFromData } from '@/domain/tournamentStats'
 import { computeQualifiers } from '@/domain/knockoutSeeding'
+import {
+  buildCombinedSeedLabels,
+  buildPlaceholderMatches,
+  buildSeedIds,
+  mergeKnockoutMatches
+} from '@/domain/placeholderBracket'
 import type {
   Tournament,
   TournamentMatch,
@@ -490,9 +496,50 @@ const nextPairings = computed(() => {
   })
 })
 
-const knockoutMatches = computed<TournamentMatch[]>(() =>
+const realKnockoutMatches = computed<TournamentMatch[]>(() =>
   matchesAsDomain.value.filter((m) => m.phase === 'knockout')
 )
+
+// Visual bracket: virtual placeholder slots + real matches merged in.
+// Renders even before any real KO match exists, so spectators see the
+// structure ("1. Gruppensieger" vs "1. bester Drittplatzierter" etc.).
+const placeholderBracketLabels = computed(() =>
+  mode.value === 'combined'
+    ? buildCombinedSeedLabels(groupCount.value, bracketSize.value)
+    : []
+)
+
+const placeholderNameMap = computed(() => {
+  const map = new Map<string, string>()
+  placeholderBracketLabels.value.forEach((label, index) => {
+    map.set(`seed-${index}`, label)
+  })
+  return map
+})
+
+const knockoutMatches = computed<TournamentMatch[]>(() => {
+  if (!hasKnockout.value || !tournament.value) return realKnockoutMatches.value
+  const seedIds = buildSeedIds({
+    mode: mode.value as 'knockout' | 'combined',
+    groupCount: groupCount.value,
+    bracketSize: bracketSize.value,
+    knockoutPlayerIds: rawPlayers.value.map((p) => p.player_id)
+  })
+  if (seedIds.length === 0) return realKnockoutMatches.value
+  const pairingMode: 'consecutive' | 'first-last' =
+    mode.value === 'combined' && bracketSize.value > 0 ? 'consecutive' : 'first-last'
+  const placeholder = buildPlaceholderMatches(
+    seedIds,
+    tournament.value.id ?? 'preview',
+    pairingMode
+  )
+  return mergeKnockoutMatches(placeholder, realKnockoutMatches.value)
+})
+
+const bracketPlayerName = (id: string | null | undefined) => {
+  if (!id) return 'TBD'
+  return placeholderNameMap.value.get(id) ?? playerName(id)
+}
 
 const leaderboardRows = computed(() =>
   calculateLeaderboardsFromData(
