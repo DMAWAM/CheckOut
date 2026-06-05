@@ -296,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import {
   initSounds,
   isSoundsMuted,
@@ -305,6 +305,7 @@ import {
   playClearSound,
   playClickSound,
   playMissSound,
+  playOkSound,
   setSoundsMuted
 } from '@/services/sounds'
 import { useRouter } from 'vue-router'
@@ -332,10 +333,90 @@ const currentThrowsTotal = computed(() =>
   currentThrows.value.reduce((sum, t) => sum + t.score * t.multiplier, 0)
 )
 
+// Desktop keyboard input — lets the user type their visit score on a
+// physical keyboard instead of clicking the on-screen keypad. The
+// listener mirrors the keypad's behaviour 1:1:
+//   0–9 (top row OR numpad) → append digit (cap 3 chars)
+//   Backspace               → pop last digit
+//   Enter / Return          → submit (empty = miss, like tapping OK)
+//   Escape / Delete         → clear input
+// The handler bails out cleanly when:
+//   - the match is finished, the keypad would be disabled, or
+//     the user is in individual-throw mode (its own keyed UI),
+//   - any modifier key is held (so browser/OS shortcuts still work),
+//   - focus is in a form field / contentEditable element (so other
+//     inputs on the page — e.g. dart-count dialog — keep accepting
+//     keyboard input normally).
+const isTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  if (target.isContentEditable) return true
+  return false
+}
+
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.ctrlKey || event.altKey || event.metaKey) return
+  if (isTypingTarget(event.target)) return
+  if (matchFinished.value) return
+  if (isInputDisabled.value) return
+  if (inputMode.value !== 'total') return
+
+  const key = event.key
+
+  // Digit (top-row or numpad). `event.key` is the character so both
+  // map to "0".."9" — we don't need event.code.
+  if (key.length === 1 && key >= '0' && key <= '9') {
+    event.preventDefault()
+    if (input.value.length >= 3) return
+    const digit = key
+    input.value = input.value === '0' ? digit : `${input.value}${digit}`
+    playClickSound()
+    return
+  }
+
+  if (key === 'Backspace') {
+    event.preventDefault()
+    if (input.value.length === 0) return
+    input.value = input.value.slice(0, -1)
+    playClickSound()
+    return
+  }
+
+  if (key === 'Enter' || key === 'Return') {
+    event.preventDefault()
+    const wasMiss = !input.value
+    submitTurn()
+    if (wasMiss) {
+      playMissSound()
+    } else {
+      playOkSound()
+    }
+    return
+  }
+
+  if (key === 'Escape' || key === 'Delete') {
+    event.preventDefault()
+    if (input.value.length === 0) return
+    input.value = ''
+    playClearSound()
+    return
+  }
+}
+
 onMounted(() => {
   game.ensureMatch()
   initSounds()
   muted.value = isSoundsMuted()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', onKeydown)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', onKeydown)
+  }
 })
 
 const muted = ref(false)
