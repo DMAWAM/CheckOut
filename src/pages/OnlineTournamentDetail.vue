@@ -161,6 +161,40 @@
           </p>
         </div>
 
+        <div
+          v-if="isAdmin && tournament?.status === 'active'"
+          class="bg-white border-2 border-border rounded-2xl p-6"
+        >
+          <h2 class="text-lg font-bold text-foreground mb-1">Public TV-Ansicht</h2>
+          <p class="text-xs text-muted-foreground mb-4">
+            Login-freie Read-Only-Ansicht für Zuschauer. URL teilen oder QR-Code an die Wand.
+          </p>
+          <div class="flex items-center gap-3 mb-4">
+            <input
+              :value="publicUrl"
+              readonly
+              class="flex-1 px-4 py-3 border-2 border-border rounded-xl bg-muted/30 text-foreground text-sm"
+            />
+            <button
+              @click="copyPublicUrl"
+              class="px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold transition-colors"
+              :class="publicUrlCopied ? '!bg-green-600' : ''"
+            >
+              {{ publicUrlCopied ? 'Kopiert' : 'Kopieren' }}
+            </button>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="w-40 h-40 bg-white border-2 border-border rounded-xl flex items-center justify-center shrink-0">
+              <img v-if="publicQrDataUrl" :src="publicQrDataUrl" alt="QR" class="w-36 h-36" />
+            </div>
+            <p class="text-xs text-muted-foreground">
+              Scannen mit dem Handy oder URL auf dem TV im Browser öffnen. Die Seite zeigt
+              laufende Matches, Tabelle, nächste Paarungen und Top-Scorer und schaltet sich
+              automatisch ab, sobald das Turnier auf „beendet“ steht.
+            </p>
+          </div>
+        </div>
+
         <div v-if="isAdmin" class="bg-white border-2 border-border rounded-2xl p-6 space-y-4">
           <div class="flex items-center justify-between">
             <h2 class="text-lg font-bold text-foreground">Spieler-Logins generieren</h2>
@@ -1764,6 +1798,43 @@ const copyInvite = async () => {
   if (inviteCopiedTimeout) clearTimeout(inviteCopiedTimeout)
   inviteCopiedTimeout = setTimeout(() => {
     inviteCopied.value = false
+  }, 1800)
+}
+
+const publicUrl = computed(() => {
+  if (!tournamentId.value) return ''
+  const origin = window.location.origin
+  const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '')
+  return `${origin}${base}/public/${tournamentId.value}`
+})
+
+const publicQrDataUrl = ref('')
+watch(
+  publicUrl,
+  async (url) => {
+    if (!url) {
+      publicQrDataUrl.value = ''
+      return
+    }
+    try {
+      publicQrDataUrl.value = await QRCode.toDataURL(url, { width: 288, margin: 1 })
+    } catch (err) {
+      console.warn('Public QR generation failed', err)
+      publicQrDataUrl.value = ''
+    }
+  },
+  { immediate: true }
+)
+
+const publicUrlCopied = ref(false)
+let publicUrlCopiedTimeout: ReturnType<typeof setTimeout> | null = null
+const copyPublicUrl = async () => {
+  if (!publicUrl.value) return
+  await navigator.clipboard.writeText(publicUrl.value)
+  publicUrlCopied.value = true
+  if (publicUrlCopiedTimeout) clearTimeout(publicUrlCopiedTimeout)
+  publicUrlCopiedTimeout = setTimeout(() => {
+    publicUrlCopied.value = false
   }, 1800)
 }
 

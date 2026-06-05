@@ -31,7 +31,9 @@ const matchHistoryStore = useMatchHistoryStore()
 const tournamentsStore = useTournamentsStore()
 const onlineTournamentsStore = useOnlineTournamentsStore()
 
-const isPublicRoute = computed(() => route.path.startsWith('/reset'))
+const isPublicRoute = computed(
+  () => route.path.startsWith('/reset') || route.path.startsWith('/public/')
+)
 
 onMounted(() => {
   auth.init()

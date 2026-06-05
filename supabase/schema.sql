@@ -522,3 +522,71 @@ create policy "push_subscriptions_owner_update" on push_subscriptions
 drop policy if exists "push_subscriptions_owner_delete" on push_subscriptions;
 create policy "push_subscriptions_owner_delete" on push_subscriptions
   for delete to authenticated using (auth.uid() = user_id);
+
+-- =============================================================================
+-- Public TV view
+-- =============================================================================
+-- Read-only snapshot of an active tournament for spectators (no auth).
+-- Returns NULL when the tournament does not exist or its status is not
+-- 'active', so finished/draft tournaments are automatically hidden again.
+-- security definer + row_security = off bypasses the table RLS only for
+-- this narrow, fixed read path; no anon SELECT policies are needed.
+create or replace function public.get_public_tournament_view(p_tid uuid)
+returns jsonb
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select case
+    when not exists (
+      select 1 from tournaments
+      where id = p_tid and status = 'active'
+    ) then null
+    else jsonb_build_object(
+      'tournament', (
+        select jsonb_build_object(
+          'id', t.id,
+          'name', t.name,
+          'date', t.date,
+          'mode', t.mode,
+          'scope', t.scope,
+          'status', t.status,
+          'settings', t.settings
+        )
+        from tournaments t where t.id = p_tid
+      ),
+      'players', (
+        select coalesce(jsonb_agg(jsonb_build_object(
+          'player_id', tp.player_id,
+          'group_index', tp.group_index,
+          'username', p.username,
+          'display_name', p.display_name
+        )), '[]'::jsonb)
+        from tournament_players tp
+        join profiles p on p.id = tp.player_id
+        where tp.tournament_id = p_tid
+      ),
+      'matches', (
+        select coalesce(jsonb_agg(to_jsonb(m)), '[]'::jsonb)
+        from tournament_matches m where m.tournament_id = p_tid
+      ),
+      'results', (
+        select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb)
+        from tournament_match_results r where r.tournament_id = p_tid
+      ),
+      'live', (
+        select coalesce(jsonb_agg(jsonb_build_object(
+          'match_id', l.match_id,
+          'snapshot', l.snapshot,
+          'updated_at', l.updated_at
+        )), '[]'::jsonb)
+        from tournament_match_live l
+        join tournament_matches m on m.id = l.match_id
+        where l.tournament_id = p_tid and m.status <> 'finished'
+      )
+    )
+  end;
+$$;
+
+grant execute on function public.get_public_tournament_view(uuid) to anon, authenticated;
