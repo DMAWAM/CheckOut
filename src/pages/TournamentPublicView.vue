@@ -149,17 +149,32 @@
           </ul>
         </section>
 
-        <!-- Bracket panel (own slide, edge-to-edge so the whole tree fits) -->
+        <!-- Bracket panel: scaled to fit the viewport, no inner scroll -->
         <section v-else-if="activePanel === 'bracket'" class="space-y-3 sm:space-y-4">
           <h2 class="text-2xl sm:text-4xl font-black tracking-tight">K.O.-Baum</h2>
-          <div class="public-card-light">
-            <TournamentBracket
-              :matches="knockoutMatches"
-              :player-name="bracketPlayerName"
-              :results="resultsAsDomain"
-              :show-details="false"
-              title=""
-            />
+          <div ref="bracketViewport" class="bracket-viewport">
+            <div
+              ref="bracketFit"
+              class="public-card-light bracket-fit"
+              :style="{
+                height: bracketFitHeight ? `${bracketFitHeight}px` : undefined,
+                width: bracketFitWidth ? `${bracketFitWidth}px` : undefined
+              }"
+            >
+              <div
+                ref="bracketInner"
+                class="bracket-inner"
+                :style="{ transform: `scale(${bracketScale})` }"
+              >
+                <TournamentBracket
+                  :matches="knockoutMatches"
+                  :player-name="bracketPlayerName"
+                  :results="resultsAsDomain"
+                  :show-details="false"
+                  title=""
+                />
+              </div>
+            </div>
           </div>
         </section>
 
@@ -185,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabase } from '@/services/supabase'
 import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
@@ -268,8 +283,16 @@ const rotationPaused = ref(false)
 
 const activePanel = ref<string>('live')
 
+const bracketViewport = ref<HTMLElement | null>(null)
+const bracketFit = ref<HTMLElement | null>(null)
+const bracketInner = ref<HTMLElement | null>(null)
+const bracketScale = ref(1)
+const bracketFitHeight = ref<number | null>(null)
+const bracketFitWidth = ref<number | null>(null)
+
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 let rotateTimer: ReturnType<typeof setInterval> | null = null
+let resizeObserver: ResizeObserver | null = null
 
 const playerMap = computed(() => {
   const map = new Map<string, string>()
@@ -642,6 +665,53 @@ const handleVisibility = () => {
   }
 }
 
+// Scale the bracket so it fits the viewport without horizontal/vertical
+// scrolling. scrollWidth/scrollHeight return the content's natural size
+// regardless of the currently-applied CSS transform, so the measurement
+// stays correct across re-fits. The vertical budget is computed against
+// the viewport (not the wrapper itself) so the wrapper's own height
+// can't feed back into the calculation.
+const TOP_RESERVE_PX = 200 // page header + main padding + section h2
+const BOTTOM_RESERVE_PX = 56 // footer + small margin
+
+const fitBracket = () => {
+  const viewport = bracketViewport.value
+  const inner = bracketInner.value
+  if (!viewport || !inner) return
+  const naturalWidth = inner.scrollWidth
+  const naturalHeight = inner.scrollHeight
+  if (naturalWidth <= 0 || naturalHeight <= 0) {
+    bracketScale.value = 1
+    bracketFitHeight.value = null
+    bracketFitWidth.value = null
+    return
+  }
+  const availableWidth = viewport.clientWidth
+  const availableHeight = Math.max(
+    240,
+    window.innerHeight - TOP_RESERVE_PX - BOTTOM_RESERVE_PX
+  )
+  const scale = Math.min(1, availableWidth / naturalWidth, availableHeight / naturalHeight)
+  bracketScale.value = scale
+  bracketFitWidth.value = Math.ceil(naturalWidth * scale)
+  bracketFitHeight.value = Math.ceil(naturalHeight * scale)
+}
+
+const scheduleBracketFit = () => {
+  if (activePanel.value !== 'bracket') return
+  nextTick(() => {
+    fitBracket()
+    // Bracket fonts (PrimeIcons) can load after the initial measure and
+    // change scrollHeight; re-fit once more after a short delay.
+    setTimeout(fitBracket, 200)
+  })
+}
+
+watch(activePanel, (panel) => {
+  if (panel === 'bracket') scheduleBracketFit()
+})
+watch(knockoutMatches, scheduleBracketFit, { deep: true })
+
 const startTimers = () => {
   if (!refreshTimer) refreshTimer = setInterval(fetchView, REFRESH_MS)
   if (!rotateTimer) rotateTimer = setInterval(rotatePanel, ROTATE_MS)
@@ -658,15 +728,25 @@ const stopTimers = () => {
   }
 }
 
+const handleWindowResize = () => scheduleBracketFit()
+
 onMounted(() => {
   fetchView()
   startTimers()
   document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener('resize', handleWindowResize)
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => scheduleBracketFit())
+    if (bracketViewport.value) resizeObserver.observe(bracketViewport.value)
+  }
 })
 
 onUnmounted(() => {
   stopTimers()
   document.removeEventListener('visibilitychange', handleVisibility)
+  window.removeEventListener('resize', handleWindowResize)
+  resizeObserver?.disconnect()
+  resizeObserver = null
 })
 </script>
 
@@ -679,5 +759,25 @@ onUnmounted(() => {
 }
 .public-card-light :deep(.text-foreground) {
   color: rgb(15 23 42); /* slate-900 */
+}
+
+/* Bracket viewport: takes the full panel width and centers the scaled
+   bracket horizontally. The fit wrapper has explicit width/height = the
+   natural bracket's dimensions × scale, so flexbox can center it like any
+   ordinary block even though the inner uses a CSS transform. */
+.bracket-viewport {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.bracket-fit {
+  overflow: hidden;
+}
+.bracket-inner {
+  transform-origin: top left;
+  width: fit-content;
+}
+.bracket-fit :deep(.bracket-wrapper) {
+  overflow: visible !important;
 }
 </style>
