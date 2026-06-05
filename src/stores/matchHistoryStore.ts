@@ -8,8 +8,48 @@ interface MatchHistoryState {
   storageKey: string
 }
 
+// Bumping STORAGE_VERSION effectively clears every user's locally-
+// cached "Letzte Spiele" list on the next app load. Use this when you
+// need to invalidate stale history across the whole user base (e.g.
+// after wiping the test data ahead of a live tournament). The legacy
+// keys (without a version suffix) are also actively swept below.
+const STORAGE_VERSION = 'v2'
+const STORAGE_PREFIX = `checkout_recent_matches_${STORAGE_VERSION}`
+
 const buildKey = (userId?: string | null) =>
-  userId ? `checkout_recent_matches_${userId}` : 'checkout_recent_matches'
+  userId ? `${STORAGE_PREFIX}_${userId}` : STORAGE_PREFIX
+
+/**
+ * One-time migration: delete every match-history key written by an
+ * earlier version of the app so users don't carry over a pre-launch
+ * test-data history. Runs at most once per device (gated by the
+ * `checkout_history_migrated` flag).
+ */
+const sweepLegacyHistoryKeys = () => {
+  if (typeof window === 'undefined') return
+  try {
+    if (window.localStorage.getItem('checkout_history_migrated') === STORAGE_VERSION) return
+    const toRemove: string[] = []
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i)
+      if (!key) continue
+      // Legacy keys had no version suffix: `checkout_recent_matches` or
+      // `checkout_recent_matches_<userId>`. The new keys carry the
+      // version segment (`checkout_recent_matches_v2...`), so any key
+      // that starts with the old prefix but NOT with the new prefix
+      // is stale and must go.
+      if (key.startsWith('checkout_recent_matches') && !key.startsWith(STORAGE_PREFIX)) {
+        toRemove.push(key)
+      }
+    }
+    toRemove.forEach((key) => window.localStorage.removeItem(key))
+    window.localStorage.setItem('checkout_history_migrated', STORAGE_VERSION)
+  } catch {
+    /* localStorage may be blocked / quota exceeded → ignore */
+  }
+}
+
+sweepLegacyHistoryKeys()
 
 const loadMatches = (storageKey: string): MatchSummary[] => {
   if (typeof window === 'undefined') return []
