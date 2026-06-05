@@ -20,8 +20,16 @@ export interface CreateTurnResult {
 
 export const isBust = (startedScore: number, points: number, doubleOut: boolean, checkoutDouble: boolean): boolean => {
   const remaining = startedScore - points
+  // Score went past zero → always a bust.
   if (remaining < 0) return true
-  if (remaining === 1) return true
+  // Leaving exactly 1 is only impossible in DOUBLE-OUT (no double has
+  // a value of 1, so the player can never finish from there). In
+  // SINGLE-OUT a remaining score of 1 is perfectly playable on the
+  // next turn (just throw a single 1 / D-anything-that-equals-1
+  // doesn't matter), so we must not flag it as bust.
+  if (remaining === 1 && doubleOut) return true
+  // In double-out, reaching exactly 0 only counts if the finishing
+  // dart was a double.
   if (remaining === 0 && doubleOut && !checkoutDouble) return true
   return false
 }

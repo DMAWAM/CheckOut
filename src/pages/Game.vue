@@ -15,7 +15,35 @@
         <i class="pi pi-trophy text-4xl text-white" />
       </div>
       <h1 class="text-4xl sm:text-5xl font-bold mb-3 text-foreground text-center">{{ winnerName ? 'Gewonnen!' : 'Unentschieden' }}</h1>
-      <p class="text-2xl sm:text-3xl text-primary font-bold mb-6 text-center break-words max-w-full">{{ winnerName || matchScoreLabel }}</p>
+      <p v-if="winnerName" class="text-2xl sm:text-3xl text-primary font-bold mb-3 text-center break-words max-w-full">{{ winnerName }}</p>
+
+      <!-- Endscore line: player names flanking the leg score in big
+           tabular numerals. Always visible (winner or draw) so the
+           spectator/player always sees the final result of the match. -->
+      <div
+        v-if="matchScoreParts"
+        class="flex items-center justify-center gap-3 sm:gap-4 mb-6 max-w-full"
+      >
+        <span
+          class="text-sm sm:text-base font-bold text-muted-foreground truncate max-w-[35vw] text-right"
+          :class="matchScoreParts.winnerId === matchScoreParts.idA ? 'text-primary' : ''"
+        >
+          {{ matchScoreParts.nameA }}
+        </span>
+        <span class="text-4xl sm:text-5xl font-black text-foreground tabular-nums leading-none">
+          {{ matchScoreParts.legsA }}
+        </span>
+        <span class="text-3xl sm:text-4xl font-black text-muted-foreground leading-none">:</span>
+        <span class="text-4xl sm:text-5xl font-black text-foreground tabular-nums leading-none">
+          {{ matchScoreParts.legsB }}
+        </span>
+        <span
+          class="text-sm sm:text-base font-bold text-muted-foreground truncate max-w-[35vw]"
+          :class="matchScoreParts.winnerId === matchScoreParts.idB ? 'text-primary' : ''"
+        >
+          {{ matchScoreParts.nameB }}
+        </span>
+      </div>
 
       <div class="grid gap-3 w-full max-w-3xl mb-6">
         <MatchPlayerStatsCard v-for="stat in matchStats" :key="stat.playerId" :stat="stat" />
@@ -334,6 +362,21 @@ const winnerName = computed(() => {
 const matchScoreLabel = computed(() =>
   game.players.map((player) => `${player.name} ${game.legWins[player.id] ?? 0}`).join(' · ')
 )
+// Structured version of the same data, used to render the big
+// "Name A — 2 : 1 — Name B" line on the post-match screen.
+const matchScoreParts = computed(() => {
+  const [a, b] = game.players
+  if (!a || !b) return null
+  return {
+    idA: a.id,
+    idB: b.id,
+    nameA: a.name,
+    nameB: b.name,
+    legsA: game.legWins[a.id] ?? 0,
+    legsB: game.legWins[b.id] ?? 0,
+    winnerId: game.match?.winnerId ?? null
+  }
+})
 const postMatchRoute = computed(() => {
   if (!game.match?.tournamentId) return '/'
   if (game.match.tournamentScope === 'online') {
@@ -454,7 +497,11 @@ const matchStats = computed(() => {
 
 const submitTurn = () => {
   if (isInputDisabled.value) return
-  const points = Number.parseInt(input.value, 10)
+  // Empty input → treat as a 0-point "miss" so the user can advance
+  // to the next player with a single OK tap when the visit scored
+  // nothing worth typing.
+  const raw = input.value.trim()
+  const points = raw === '' ? 0 : Number.parseInt(raw, 10)
   if (Number.isNaN(points) || points < 0 || points > 180) {
     input.value = ''
     return

@@ -28,6 +28,34 @@
         <span v-if="match.endedAt">Beendet: {{ formatDate(match.endedAt) }}</span>
       </div>
 
+      <!-- Endscore display: "Name A — 2 : 1 — Name B" with the winner's
+           name in primary green. Mirrors the post-match screen in the
+           Game view so the spectator sees the same final score here. -->
+      <div
+        v-if="scoreParts"
+        class="flex items-center justify-center gap-3 sm:gap-4 mb-4 max-w-full"
+      >
+        <span
+          class="text-sm sm:text-base font-bold truncate max-w-[35vw] text-right"
+          :class="scoreParts.winnerId === scoreParts.idA ? 'text-primary' : 'text-muted-foreground'"
+        >
+          {{ scoreParts.nameA }}
+        </span>
+        <span class="text-3xl sm:text-4xl font-black text-foreground tabular-nums leading-none">
+          {{ scoreParts.legsA }}
+        </span>
+        <span class="text-2xl sm:text-3xl font-black text-muted-foreground leading-none">:</span>
+        <span class="text-3xl sm:text-4xl font-black text-foreground tabular-nums leading-none">
+          {{ scoreParts.legsB }}
+        </span>
+        <span
+          class="text-sm sm:text-base font-bold truncate max-w-[35vw]"
+          :class="scoreParts.winnerId === scoreParts.idB ? 'text-primary' : 'text-muted-foreground'"
+        >
+          {{ scoreParts.nameB }}
+        </span>
+      </div>
+
       <div v-if="match.stats.length === 0" class="text-sm text-muted-foreground">
         Für dieses Match sind noch keine Statistiken verfügbar.
       </div>
@@ -70,6 +98,26 @@ const resultLabel = computed(() => {
   if (!props.match) return 'Status: beendet'
   const winner = props.match.players.find((player) => player.id === props.match?.winnerId)
   return winner ? `Sieger: ${winner.name}` : 'Resultat: Unentschieden'
+})
+
+// Pair up the two players with their leg counts so the template can
+// render a big "Name A — 2 : 1 — Name B" line. Reads legsWon from the
+// per-player stats already persisted on the MatchSummary.
+const scoreParts = computed(() => {
+  if (!props.match) return null
+  const [a, b] = props.match.players
+  if (!a || !b) return null
+  const statA = props.match.stats.find((stat) => stat.playerId === a.id)
+  const statB = props.match.stats.find((stat) => stat.playerId === b.id)
+  return {
+    idA: a.id,
+    idB: b.id,
+    nameA: a.name,
+    nameB: b.name,
+    legsA: statA?.legsWon ?? 0,
+    legsB: statB?.legsWon ?? 0,
+    winnerId: props.match.winnerId ?? null
+  }
 })
 
 const formatDate = (value: string) => {

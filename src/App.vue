@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useMatchHistoryStore } from '@/stores/matchHistoryStore'
 import { usePlayersStore } from '@/stores/playersStore'
 import { useTournamentsStore } from '@/stores/tournamentsStore'
+import { useOnlineTournamentsStore } from '@/stores/onlineTournamentsStore'
 import Auth from '@/pages/Auth.vue'
 
 const route = useRoute()
@@ -28,6 +29,7 @@ const auth = useAuthStore()
 const playersStore = usePlayersStore()
 const matchHistoryStore = useMatchHistoryStore()
 const tournamentsStore = useTournamentsStore()
+const onlineTournamentsStore = useOnlineTournamentsStore()
 
 const isPublicRoute = computed(() => route.path.startsWith('/reset'))
 
@@ -52,6 +54,14 @@ watch(
     playersStore.setUserScope(userId)
     matchHistoryStore.setUserScope(userId)
     tournamentsStore.setUserScope(userId)
+    // Online tournaments are now wired here too so the list reliably
+    // refreshes the moment the auth user changes — independent of
+    // which route the user happens to be on. Without this, the in-
+    // component watcher in TournamentsList only kicked in once that
+    // page was opened, and a user who logged in on a different
+    // route (or whose session restored before TournamentsList
+    // mounted) saw an empty list until a hard refresh.
+    onlineTournamentsStore.setUserScope(userId)
   },
   { immediate: true }
 )

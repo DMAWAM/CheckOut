@@ -37,13 +37,36 @@ export interface MatchPlayerStats {
 // first place. Pass `doubleOut` and the calculator returns zero
 // checkout counters when the match wasn't played to a double, which
 // the UI then renders as "—" instead of "0%".
+
+/**
+ * A turn only counts as a "checkout attempt" if the player
+ * demonstrably threw at a double during the visit. Without
+ * per-dart data we can only know this from the turn outcome:
+ *
+ *  - checkoutHit  → they hit a double to finish the leg.
+ *  - bust && startedScore ≤ 170 → they tried to finish and went
+ *    over (e.g. on 32 they aimed D16, hit S16, then tried to
+ *    finish on a different double and overshot).
+ *
+ * Plain low-scoring visits ("72 remaining → scored 5") are NOT
+ * counted, which matches the standard pro-darts definition. Before
+ * this fix the calculator counted every visit with startedScore ≤ 170
+ * as an attempt, so a player's checkout-% dropped after a setup-only
+ * scoring visit even though no double was thrown — the bug the user
+ * reported (29% → 25% after scoring 5 from a 72 rest).
+ */
+const isCheckoutAttempt = (turn: Turn): boolean => {
+  if (turn.checkoutHit) return true
+  if (turn.bust && turn.startedScore <= 170) return true
+  return false
+}
 export const calculateBasicStats = (turns: Turn[], doubleOut = true): BasicStats => {
   const totalPoints = turns.reduce((sum, turn) => sum + (turn.bust ? 0 : turn.points), 0)
   const totalDarts = turns.reduce((sum, turn) => sum + turn.dartsThrown, 0)
   const average3Dart = totalDarts === 0 ? 0 : (totalPoints / totalDarts) * 3
   const highestScore = turns.reduce((max, turn) => Math.max(max, turn.points), 0)
   const checkoutAttempts = doubleOut
-    ? turns.filter((turn) => turn.startedScore <= 170).length
+    ? turns.filter(isCheckoutAttempt).length
     : 0
   const checkoutHits = doubleOut ? turns.filter((turn) => turn.checkoutHit).length : 0
   const checkoutPercentage = checkoutAttempts === 0 ? 0 : checkoutHits / checkoutAttempts
@@ -69,7 +92,7 @@ export const calculateMatchPlayerStats = (turns: Turn[], doubleOut = true): Matc
   // darts thrown in the double-zone score range (≤40 or =50); also
   // meaningless without a double-out rule, so we zero it out too.
   const checkoutAttempts = doubleOut
-    ? turns.filter((turn) => turn.startedScore <= 170).length
+    ? turns.filter(isCheckoutAttempt).length
     : 0
   const checkoutHits = doubleOut ? turns.filter((turn) => turn.checkoutHit).length : 0
   const checkoutRate = checkoutAttempts === 0 ? 0 : (checkoutHits / checkoutAttempts) * 100

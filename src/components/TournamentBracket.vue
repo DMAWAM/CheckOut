@@ -46,9 +46,10 @@
                       v-if="showDetails && hasDetails(match)"
                       type="button"
                       class="bracket-details"
+                      :class="match.status === 'in_progress' ? 'bracket-details--live' : ''"
                       @click="emit('details', match.id)"
                     >
-                      Details
+                      {{ match.status === 'in_progress' ? 'Live ansehen' : 'Details' }}
                     </button>
                   </div>
                 </div>
@@ -111,9 +112,10 @@
                   v-if="showDetails && hasDetails(match)"
                   type="button"
                   class="compact-details"
+                  :class="match.status === 'in_progress' ? 'compact-details--live' : ''"
                   @click="emit('details', match.id)"
                 >
-                  Details
+                  {{ match.status === 'in_progress' ? 'Live ansehen' : 'Details' }}
                 </button>
               </div>
             </div>
@@ -173,6 +175,32 @@ const matchNumberMap = computed(() => {
         map.set(match.id, current)
         current += 1
       }
+    })
+  })
+  return map
+})
+
+// Reverse lookup: matchNumber → match. Lets a `winner:<ref>`
+// placeholder resolve to the actual match it represents in O(1),
+// which is how we surface the real winner's name in the next round
+// the moment their match ends (even before the opposing match
+// finishes).
+const matchByNumber = computed(() => {
+  const map = new Map<number, TournamentMatch>()
+  rounds.value.forEach((round) => {
+    round.matches.forEach((match) => {
+      const num = matchNumberMap.value.get(match.id)
+      if (num !== undefined) map.set(num, match)
+    })
+  })
+  return map
+})
+
+const matchById = computed(() => {
+  const map = new Map<string, TournamentMatch>()
+  rounds.value.forEach((round) => {
+    round.matches.forEach((match) => {
+      map.set(match.id, match)
     })
   })
   return map
@@ -308,8 +336,28 @@ const playerLabel = (playerId: string, fallbackId?: string) => {
   if (!playerId || playerId === 'TBD') return 'TBD'
   if (playerId.startsWith('winner:')) {
     const ref = playerId.replace('winner:', '')
-    const number = ref.startsWith('game-') ? ref.replace('game-', '') : matchNumberMap.value.get(ref)
-    return number ? `Sieger Spiel ${number}` : 'Sieger'
+    // Resolve the placeholder reference to the actual match it
+    // represents. `ref` is either a placeholder id ("game-5") which
+    // maps via matchByNumber, or a real UUID which maps via matchById.
+    let referencedMatch: TournamentMatch | undefined
+    let number: number | undefined
+    if (ref.startsWith('game-')) {
+      number = Number(ref.replace('game-', ''))
+      referencedMatch = !Number.isNaN(number) ? matchByNumber.value.get(number) : undefined
+    } else {
+      referencedMatch = matchById.value.get(ref)
+      number = referencedMatch ? matchNumberMap.value.get(referencedMatch.id) : undefined
+    }
+    // KEY: if the referenced match already has a winner, show that
+    // winner's real name in the next round — even if the opposing
+    // match hasn't finished yet. This is the "winner advances early"
+    // behaviour: as soon as a player wins their round, their name
+    // appears in the next bracket slot, with "Sieger Spiel X" still
+    // showing for the side whose feeder match is in progress.
+    if (referencedMatch?.winnerId) {
+      return props.playerName(referencedMatch.winnerId)
+    }
+    return number !== undefined ? `Sieger Spiel ${number}` : 'Sieger'
   }
   if (fallbackId && playerId === fallbackId) return `${props.playerName(playerId)} (Freilos)`
   return props.playerName(playerId)

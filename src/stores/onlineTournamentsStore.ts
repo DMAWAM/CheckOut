@@ -38,6 +38,10 @@ interface OnlineTournamentState {
   loginCodes: Array<{ playerId: string; name: string; username: string; code: string }>
   loading: boolean
   inviteCode: string | null
+  /** Tracks the auth user the cached tournament data belongs to so a
+   *  user switch wipes stale state instead of briefly flashing the
+   *  previous user's list. */
+  currentUserId: string | null
 }
 
 const generateInviteCode = () =>
@@ -82,7 +86,8 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
     results: [],
     loginCodes: [],
     loading: false,
-    inviteCode: null
+    inviteCode: null,
+    currentUserId: null
   }),
   getters: {
     standingsByGroup: (state) => (groupIndex?: number) => {
@@ -114,25 +119,73 @@ export const useOnlineTournamentsStore = defineStore('onlineTournaments', {
     )
   },
   actions: {
+    /**
+     * Wire this to App.vue's auth watcher. Called with the current
+     * auth user id (or null on logout). When the user actually
+     * changed we wipe every piece of cached tournament data so the
+     * next user never momentarily sees the previous user's list
+     * (which used to require a hard refresh to clear). For a
+     * logged-in user we kick off fetchMyTournaments — itself
+     * retrying on transient failures (see below) so the list is
+     * reliable straight after sign-in.
+     */
+    setUserScope(userId: string | null) {
+      const userChanged = this.currentUserId !== userId
+      if (userChanged) {
+        this.tournaments = []
+        this.currentTournament = null
+        this.players = []
+        this.matches = []
+        this.results = []
+        this.loginCodes = []
+        this.inviteCode = null
+      }
+      this.currentUserId = userId
+      if (userId) {
+        void this.fetchMyTournaments()
+      }
+    },
     async fetchMyTournaments() {
       const auth = useAuthStore()
       if (!auth.session?.user) return
+      const userId = auth.session.user.id
       this.loading = true
-      const { data, error } = await supabase
-        .from('tournament_players')
-        .select('tournament:tournaments(*)')
-        .eq('player_id', auth.session.user.id)
-      if (error) {
-        console.warn(error)
-        this.loading = false
-        return
+      // Retry-with-backoff: right after signIn the supabase-js client
+      // occasionally hasn't propagated the new JWT to outgoing
+      // PostgREST requests yet, so the very first query returns either
+      // an auth error or an empty rowset due to RLS. Without a retry
+      // the user saw an empty Turniere list until they reopened the
+      // app. Three attempts with 0/250/500 ms backoff covers the
+      // race comfortably.
+      let lastError: unknown = null
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
+        }
+        // Skip if the user logged out / switched while we were
+        // retrying — would otherwise write the previous user's data
+        // back into a now-empty store.
+        if (this.currentUserId && this.currentUserId !== userId) {
+          this.loading = false
+          return
+        }
+        const { data, error } = await supabase
+          .from('tournament_players')
+          .select('tournament:tournaments(*)')
+          .eq('player_id', userId)
+        if (!error) {
+          this.tournaments =
+            data?.map((entry: { tournament: any }) => ({
+              ...entry.tournament,
+              createdBy: entry.tournament.created_by,
+              scope: 'online'
+            })) ?? []
+          this.loading = false
+          return
+        }
+        lastError = error
       }
-      this.tournaments =
-        data?.map((entry: { tournament: any }) => ({
-          ...entry.tournament,
-          createdBy: entry.tournament.created_by,
-          scope: 'online'
-        })) ?? []
+      console.warn('fetchMyTournaments failed after retries', lastError)
       this.loading = false
     },
     async createTournament(params: {

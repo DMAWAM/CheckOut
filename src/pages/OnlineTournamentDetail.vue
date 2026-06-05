@@ -1269,20 +1269,24 @@ const qualifiedPlayerStatus = computed<Record<string, QualifierStatus>>(() => {
     status[q.playerId] = q.rankInGroup <= baseQualifiers ? 'direct' : 'wildcard'
   })
 
-  // Snapshot view of the wildcard cusp: the rank just below the direct
-  // cutoff (typically rank 3 when the top 2 of each group qualify
-  // directly). We always colour these players gold, regardless of
-  // whether the current bracket configuration actually produces
-  // wildcard slots — same principle as ranks 1 and 2 being marked
-  // green in every group. This makes it visible at a glance who is
-  // currently best positioned to qualify via the wildcard tier.
-  const cuspRank = baseQualifiers + 1
-  standingsByGroup.forEach((rows) => {
-    const cuspRow = rows[cuspRank - 1]
-    if (cuspRow && status[cuspRow.playerId] === undefined) {
-      status[cuspRow.playerId] = 'wildcard'
-    }
-  })
+  // Snapshot view of the wildcard cusp: while the group phase is still
+  // running we colour every rank-(baseQualifiers+1) player gold in
+  // every group so spectators can see "who is currently in line" via
+  // the wildcard tier. Once every group's matches are finished the
+  // standings are final — at that point only the players that
+  // computeQualifiers actually returned as wildcards (i.e. the best-N
+  // 3rd-placers that really advance) should stay gold; the rank-3
+  // players who got cut drop back to the neutral state. Ranks 1 and 2
+  // remain green throughout via the `qualifiers` loop above.
+  if (!allGroupsFinished.value) {
+    const cuspRank = baseQualifiers + 1
+    standingsByGroup.forEach((rows) => {
+      const cuspRow = rows[cuspRank - 1]
+      if (cuspRow && status[cuspRow.playerId] === undefined) {
+        status[cuspRow.playerId] = 'wildcard'
+      }
+    })
+  }
 
   return status
 })
@@ -1478,13 +1482,40 @@ const placeholderNameMap = computed(() => {
   return map
 })
 
-const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) => {
+/**
+ * Build a fully-virtual bracket the bracket-view can render before any
+ * real matches exist (or while only some real matches have been
+ * created). Two important details that have to match the real bracket:
+ *
+ *   1. R2+ placeholder `order` values use the SAME scheme that
+ *      `advanceKnockoutIfReady` uses for real matches, namely
+ *      `round * 1000 + index + 1`. With aligned order spaces the
+ *      bracket-merge logic correctly intermixes real matches with the
+ *      remaining placeholders — without this, a real R2 match (order
+ *      2001) would sort AFTER a placeholder R2 (order 9) and end up
+ *      drawn at the wrong vertical slot, with bracket lines that no
+ *      longer connect to the right R1 feeders.
+ *
+ *   2. `pairingMode === 'consecutive'` pairs `seeds[2i]` with
+ *      `seeds[2i+1]`. This matches the canonical bracket geometry used
+ *      by `buildSeededKnockoutPairsAvoidingSameGroup` (combined mode +
+ *      bracketSize): `combinedSeedIds` is already in visual-slot
+ *      order, so consecutive seeds are the actual R1 pairs. The
+ *      default 'first-last' mode keeps the legacy layout
+ *      (`buildKnockoutSeedPairs` — seed #1 vs #N, seed #2 vs #N-1,
+ *      ...) used for KO-only tournaments where `seedIds` is in
+ *      seed-number order.
+ */
+const buildPlaceholderMatches = (
+  seedIds: string[],
+  tournamentIdValue: string,
+  pairingMode: 'consecutive' | 'first-last' = 'first-last'
+) => {
   const size = Math.pow(2, Math.ceil(Math.log2(Math.max(seedIds.length, 2))))
   const seeds = [...seedIds]
   while (seeds.length < size) seeds.push('TBD')
   const rounds = Math.max(1, Math.log2(size))
   const matches: TournamentMatch[] = []
-  let order = 1
   let gameNumber = 1
   let previousRoundIds: string[] = []
 
@@ -1495,8 +1526,13 @@ const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) =
       let playerAId = 'TBD'
       let playerBId = 'TBD'
       if (round === 1) {
-        playerAId = seeds[index] ?? 'TBD'
-        playerBId = seeds[size - 1 - index] ?? 'TBD'
+        if (pairingMode === 'consecutive') {
+          playerAId = seeds[index * 2] ?? 'TBD'
+          playerBId = seeds[index * 2 + 1] ?? 'TBD'
+        } else {
+          playerAId = seeds[index] ?? 'TBD'
+          playerBId = seeds[size - 1 - index] ?? 'TBD'
+        }
       } else {
         const left = previousRoundIds[index * 2]
         const right = previousRoundIds[index * 2 + 1]
@@ -1510,7 +1546,11 @@ const buildPlaceholderMatches = (seedIds: string[], tournamentIdValue: string) =
         tournamentId: tournamentIdValue,
         phase: 'knockout',
         round,
-        order: order++,
+        // R1 keeps a simple sequential order — R1 is always created
+        // in a single batch by ensureKnockoutPhase so the placeholder
+        // R1 is guaranteed to be fully replaced. R2+ MUST use the
+        // round*1000+i+1 scheme to align with real matches' orders.
+        order: round === 1 ? index + 1 : round * 1000 + index + 1,
         playerAId,
         playerBId,
         status: 'pending'
@@ -1532,7 +1572,19 @@ const knockoutMatchesForView = computed(() => {
   if (!tournament.value) return knockoutMatches.value
   const seedIds = knockoutSeedIds.value
   if (seedIds.length === 0) return knockoutMatches.value
-  const placeholder = buildPlaceholderMatches(seedIds, tournamentId.value ?? 'preview')
+  // Combined-with-bracketSize emits combinedSeedIds in visual-slot
+  // order (slot 0 = seed#1, slot 1 = seed#16, slot 2 = seed#8, ...),
+  // so consecutive seeds are the actual R1 pairs. Every other path
+  // (legacy combined / KO-only) keeps the historical first-vs-last
+  // pairing because their seed lists are in seed-number / player order.
+  const bracketSize = tournament.value?.settings.koBracketSize ?? 0
+  const pairingMode: 'consecutive' | 'first-last' =
+    isCombined.value && bracketSize > 0 ? 'consecutive' : 'first-last'
+  const placeholder = buildPlaceholderMatches(
+    seedIds,
+    tournamentId.value ?? 'preview',
+    pairingMode
+  )
   if (knockoutMatches.value.length === 0) return placeholder
 
   const placeholderByRound = new Map<number, TournamentMatch[]>()

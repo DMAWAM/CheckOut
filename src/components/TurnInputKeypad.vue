@@ -50,12 +50,18 @@
       >
         0
       </button>
+      <!-- OK with no input entered is treated as a 0-point "miss" so
+           the user can advance to the next player with a single tap
+           when the visit scored nothing worth typing in. The parent
+           handler interprets an empty input as 0; this component
+           plays the dedicated miss sound + a slightly heavier
+           haptic to make the distinction perceptible. -->
       <button
         class="bg-primary text-primary-foreground rounded-2xl text-lg sm:text-xl font-black leading-none shadow-lg
                active:scale-95 active:bg-primary/75 active:shadow-inner
                transition-[transform,background-color,box-shadow] duration-75
                disabled:opacity-40 touch-manipulation select-none"
-        :disabled="disabled || !value"
+        :disabled="disabled"
         @click="submit"
       >
         OK
@@ -65,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { playClickSound, playClearSound, playOkSound, triggerHaptic } from '@/services/sounds'
+import { playClickSound, playClearSound, playMissSound, playOkSound, triggerHaptic } from '@/services/sounds'
 
 const props = defineProps<{ value: string; disabled?: boolean }>()
 const emit = defineEmits<{ (e: 'update:value', value: string): void; (e: 'submit'): void }>()
@@ -102,9 +108,19 @@ const clear = () => {
 }
 
 const submit = () => {
-  if (props.disabled || !props.value) return
+  if (props.disabled) return
+  // Empty input → "miss": parent reads no value and records a
+  // 0-point visit, advancing to the next player. Play the miss
+  // sound + a heavier haptic so the user can feel the distinction
+  // from a normal OK confirmation.
+  const isMiss = !props.value
   emit('submit')
-  playOkSound()
-  triggerHaptic(15)
+  if (isMiss) {
+    playMissSound()
+    triggerHaptic(22)
+  } else {
+    playOkSound()
+    triggerHaptic(15)
+  }
 }
 </script>
