@@ -173,8 +173,10 @@
       confirm-label="Löschen"
       cancel-label="Abbrechen"
       tone="danger"
+      :confirm-loading="isDeleting"
+      loading-label="Lösche ..."
       @confirm="confirmDelete"
-      @cancel="deleteTarget = null"
+      @cancel="isDeleting ? null : (deleteTarget = null)"
     />
   </div>
 </template>
@@ -274,6 +276,12 @@ const canDeleteOnline = (tournament: { createdBy?: string }) => tournament.creat
 
 const deleteTarget = ref<{ id: string; name: string; scope: 'local' | 'online' } | null>(null)
 const deleteError = ref('')
+// Submitting flag for the delete confirm dialog. While true the
+// ConfirmDialog disables both buttons and shows a spinner — prevents
+// double-taps from spawning concurrent deletes and gives the user a
+// clear "in progress" cue. ALWAYS reset in `finally` so a thrown
+// supabase call can't leave the UI stuck "lösche ..." forever.
+const isDeleting = ref(false)
 const deleteMessage = computed(() => {
   if (!deleteTarget.value) return ''
   const base = `Willst du "${deleteTarget.value.name}" wirklich löschen?`
@@ -290,7 +298,9 @@ const openDeleteDialog = (
 
 const confirmDelete = async () => {
   if (!deleteTarget.value) return
+  if (isDeleting.value) return
   deleteError.value = ''
+  isDeleting.value = true
   try {
     if (deleteTarget.value.scope === 'local') {
       tournamentsStore.deleteTournament(deleteTarget.value.id)
@@ -300,6 +310,8 @@ const confirmDelete = async () => {
     deleteTarget.value = null
   } catch (err) {
     deleteError.value = (err as Error).message ?? 'Turnier konnte nicht gelöscht werden.'
+  } finally {
+    isDeleting.value = false
   }
 }
 </script>

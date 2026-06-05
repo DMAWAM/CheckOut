@@ -811,15 +811,15 @@
 
     <div class="px-6">
       <button
-        :disabled="!canCreate"
+        :disabled="!canCreate || isCreating"
         @click="createTournament"
         class="w-full rounded-2xl py-5 px-6 flex items-center justify-center gap-3 shadow-lg transition-all"
-        :class="canCreate
+        :class="canCreate && !isCreating
           ? 'bg-primary text-primary-foreground active:scale-98'
           : 'bg-primary/60 text-primary-foreground/70 cursor-not-allowed'"
       >
-        <i class="pi pi-check" />
-        Turnier erstellen
+        <i :class="isCreating ? 'pi pi-spin pi-spinner' : 'pi pi-check'" />
+        {{ isCreating ? 'Erstelle ...' : 'Turnier erstellen' }}
       </button>
       <p v-if="errorMessage" class="text-center text-xs text-destructive mt-2">
         {{ errorMessage }}
@@ -879,6 +879,13 @@ const koBracketSummary = computed(() => {
   return `Top ${base} je Gruppe + die ${remainder} besten Gruppen-${base + 1}. → ${size} Spieler in der K.O.-Phase.`
 })
 const errorMessage = ref('')
+// Submitting flag for the "Turnier erstellen" button. Without this,
+// users could double-tap during slow networks and fire several
+// concurrent createTournament calls; worse, if any phase threw the
+// button stayed clickable in a partial state. Now it visibly switches
+// to "Erstelle ..." with a spinner and is reset in `finally` so
+// even an unexpected throw can't leave it disabled.
+const isCreating = ref(false)
 const tournamentDescription = ref('')
 
 const doubleOut = ref(true)
@@ -1164,7 +1171,9 @@ const applyGummiMastersPreset = () => {
 
 const createTournament = async () => {
   if (!canCreate.value) return
+  if (isCreating.value) return
   errorMessage.value = ''
+  isCreating.value = true
   const baseFormatValue = buildFormat(baseFormat)
   const descriptionValue = tournamentDescription.value.trim() || undefined
   const formatByPhase = usePhaseFormats.value
@@ -1223,30 +1232,41 @@ const createTournament = async () => {
       router.push(`/tournaments/online/${id}`)
     } catch (err) {
       errorMessage.value = (err as Error).message ?? 'Online-Turnier konnte nicht erstellt werden.'
+    } finally {
+      // Reset even on success: if router.push for some reason doesn't
+      // unmount the component (unlikely but defensive), we don't want
+      // the button stuck on "Erstelle ..." forever.
+      isCreating.value = false
     }
     return
   }
 
-  const id = tournamentsStore.createTournament({
-    name: tournamentName.value.trim(),
-    date: tournamentDate.value,
-    mode: tournamentType.value,
-    settings: {
-      mode501: startingScore.value === 501,
-      doubleOut: doubleOut.value,
-      format: baseFormatValue,
-      formatByPhase: normalizedFormatByPhase,
-      outByPhase: normalizedOutByPhase,
-      description: descriptionValue,
-      groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
-      startingScore: startingScore.value,
-      koBracketSize:
-        tournamentType.value === 'combined' && koBracketSize.value > 0
-          ? koBracketSize.value
-          : undefined
-    },
-    playerIds: selectedPlayerIds.value
-  })
-  router.push(`/tournaments/${id}`)
+  try {
+    const id = tournamentsStore.createTournament({
+      name: tournamentName.value.trim(),
+      date: tournamentDate.value,
+      mode: tournamentType.value,
+      settings: {
+        mode501: startingScore.value === 501,
+        doubleOut: doubleOut.value,
+        format: baseFormatValue,
+        formatByPhase: normalizedFormatByPhase,
+        outByPhase: normalizedOutByPhase,
+        description: descriptionValue,
+        groupCount: tournamentType.value === 'knockout' ? 1 : groupCount.value,
+        startingScore: startingScore.value,
+        koBracketSize:
+          tournamentType.value === 'combined' && koBracketSize.value > 0
+            ? koBracketSize.value
+            : undefined
+      },
+      playerIds: selectedPlayerIds.value
+    })
+    router.push(`/tournaments/${id}`)
+  } catch (err) {
+    errorMessage.value = (err as Error).message ?? 'Turnier konnte nicht erstellt werden.'
+  } finally {
+    isCreating.value = false
+  }
 }
 </script>

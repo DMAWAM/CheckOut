@@ -1,5 +1,17 @@
 <template>
-  <div class="min-h-[100dvh] bg-gradient-to-br from-background via-background to-muted flex flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-12">
+  <!--
+    On iPhone the surrounding #app already pads itself with the safe-area
+    insets (top + bottom together ≈ 93 px on iPhone 14 Pro). Setting
+    min-h-[100dvh] here therefore made the page slightly taller than the
+    visible viewport and the user could scroll the login form a few
+    pixels up and down. Use the safe-area-adjusted height instead so
+    the form sits exactly inside the visible content area and there's
+    no phantom scroll strip.
+  -->
+  <div
+    class="bg-gradient-to-br from-background via-background to-muted flex flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-12"
+    style="min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));"
+  >
     <div class="mb-5 sm:mb-10 text-center">
       <h1 class="text-4xl sm:text-6xl font-bold mb-1 sm:mb-2 text-foreground">CheckOut</h1>
       <p class="text-sm sm:text-xl text-muted-foreground">Vereins-Scoring & Statistiken</p>

@@ -763,6 +763,29 @@ const championName = computed(() => {
   .bracket-compact {
     display: flex;
   }
+
+  /* Compact view fits the viewport on its own — the desktop's
+     `overflow-x-auto` + `min-width: max-content` combo would
+     otherwise force the card to be as wide as its widest inner
+     element (long player names, etc.), giving the user a
+     horizontally-scrollable bracket on iPhone. Drop both so the
+     compact layout shrinks to fit the screen. */
+  .bracket-wrapper {
+    overflow-x: hidden;
+  }
+
+  .bracket-card {
+    min-width: 0;
+  }
+
+  /* Allow long names to truncate inside the compact match rows
+     instead of pushing the card wider than the screen. */
+  .compact-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 640px) {

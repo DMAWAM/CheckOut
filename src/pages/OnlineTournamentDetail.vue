@@ -586,8 +586,10 @@
       confirm-label="Löschen"
       cancel-label="Abbrechen"
       tone="danger"
+      :confirm-loading="isDeleting"
+      loading-label="Lösche ..."
       @confirm="handleDelete"
-      @cancel="showDeleteDialog = false"
+      @cancel="isDeleting ? null : (showDeleteDialog = false)"
     />
     <ConfirmDialog
       :open="Boolean(deletePlayerTarget)"
@@ -1982,15 +1984,24 @@ const confirmDelete = () => {
   showDeleteDialog.value = true
 }
 
+// Submitting flag for the delete dialog — disables both buttons while
+// the async delete runs and is reset in `finally` so a thrown
+// supabase call can't leave the dialog stuck on "Lösche ...".
+const isDeleting = ref(false)
+
 const handleDelete = async () => {
   if (!tournament.value) return
+  if (isDeleting.value) return
   deleteError.value = ''
+  isDeleting.value = true
   try {
     await onlineStore.deleteTournament(tournament.value.id)
     showDeleteDialog.value = false
     router.push('/tournaments')
   } catch (err) {
     deleteError.value = (err as Error).message ?? 'Turnier konnte nicht gelöscht werden.'
+  } finally {
+    isDeleting.value = false
   }
 }
 

@@ -15,20 +15,23 @@
         <div class="flex items-center justify-end gap-2">
           <button
             type="button"
-            class="px-4 py-2 rounded-xl border-2 border-border bg-white text-foreground font-bold text-sm hover:border-primary hover:text-primary transition-all"
+            class="px-4 py-2 rounded-xl border-2 border-border bg-white text-foreground font-bold text-sm hover:border-primary hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="confirmLoading"
             @click="$emit('cancel')"
           >
             {{ cancelLabel }}
           </button>
           <button
             type="button"
-            class="px-4 py-2 rounded-xl font-bold text-sm transition-all"
+            class="px-4 py-2 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             :class="tone === 'danger'
               ? 'bg-destructive text-destructive-foreground hover:opacity-90'
               : 'bg-primary text-primary-foreground hover:opacity-90'"
+            :disabled="confirmLoading"
             @click="$emit('confirm')"
           >
-            {{ confirmLabel }}
+            <i v-if="confirmLoading" class="pi pi-spin pi-spinner text-sm" />
+            {{ confirmLoading ? loadingLabel : confirmLabel }}
           </button>
         </div>
       </div>
@@ -44,10 +47,18 @@ withDefaults(defineProps<{
   confirmLabel?: string
   cancelLabel?: string
   tone?: 'danger' | 'primary'
+  /** When true the dialog freezes both buttons and shows a spinner +
+   *  loadingLabel on the confirm side. Parents flip this around their
+   *  async action so the user gets clear "I'm working on it"
+   *  feedback and can't double-trigger the same operation. */
+  confirmLoading?: boolean
+  loadingLabel?: string
 }>(), {
   confirmLabel: 'Löschen',
   cancelLabel: 'Abbrechen',
-  tone: 'danger'
+  tone: 'danger',
+  confirmLoading: false,
+  loadingLabel: 'Bitte warten ...'
 })
 
 defineEmits<{
