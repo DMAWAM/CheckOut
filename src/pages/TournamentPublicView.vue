@@ -163,14 +163,14 @@
           </div>
         </section>
 
-        <!-- Top scorers panel -->
-        <section v-else-if="activePanel === 'top'" class="space-y-5 sm:space-y-7">
-          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">Top-Scorer</h2>
+        <!-- Top scorers panel (3×3 grid, fits on a 1080p TV without scrolling) -->
+        <section v-else-if="activePanel === 'top'" class="space-y-3 sm:space-y-4">
+          <h2 class="text-2xl sm:text-4xl font-black tracking-tight">Top-Scorer</h2>
           <div v-if="leaderboardRows.length === 0" class="text-slate-500 text-xl py-12">
             Noch keine Statistiken.
           </div>
           <div v-else class="public-card-light">
-            <TournamentLeaderboardTable title="Leaderboard" :rows="leaderboardRows" />
+            <TournamentLeaderboardTable title="Leaderboard" :rows="leaderboardRows" compact />
           </div>
         </section>
       </template>

@@ -1,31 +1,40 @@
 <template>
-  <div class="bg-white border-2 border-border rounded-2xl p-4 sm:p-5 shadow-sm">
-    <div class="flex items-center justify-between mb-4">
+  <div
+    class="bg-white border-2 border-border rounded-2xl shadow-sm"
+    :class="compact ? 'p-2 sm:p-3' : 'p-4 sm:p-5'"
+  >
+    <div v-if="!compact" class="flex items-center justify-between mb-4">
       <h3 class="text-base sm:text-lg font-bold text-foreground">{{ title }}</h3>
       <span class="text-xs font-semibold text-muted-foreground">{{ rows.length }} Spieler</span>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div :class="gridClass">
       <!-- Every card has IDENTICAL dimensions: a fixed-height header,
-           five fixed-height player rows (h-16 = 64px regardless of whether
-           the category carries a `detail` subtitle), and a fixed-height
-           expander button. Bestes Leg / Checkout Quote no longer stretch
-           their grid row vs. the subtitle-less categories, so all eight
-           cards occupy exactly the same visual space. -->
+           a fixed number of fixed-height player rows, and (in default
+           mode) a fixed-height expander button. -->
       <section
         v-for="category in categories"
         :key="category.key"
         class="rounded-2xl border-2 border-border bg-muted/20 overflow-hidden"
       >
-        <div class="px-4 py-3 bg-white border-b-2 border-border">
+        <div
+          class="bg-white border-b-2 border-border"
+          :class="compact ? 'px-3 py-2' : 'px-4 py-3'"
+        >
           <div class="text-sm font-black text-foreground">{{ category.title }}</div>
-          <div class="text-[11px] font-semibold text-muted-foreground">{{ category.subtitle }}</div>
+          <div
+            v-if="!compact || category.subtitle"
+            class="text-[11px] font-semibold text-muted-foreground"
+          >
+            {{ category.subtitle }}
+          </div>
         </div>
         <div class="divide-y divide-border/70">
           <div
             v-for="(row, index) in visibleRows(category)"
             :key="`${category.key}-${row.playerId}`"
-            class="flex items-center justify-between gap-3 px-4 h-16"
+            class="flex items-center justify-between gap-3"
+            :class="compact ? 'px-3 h-11' : 'px-4 h-16'"
           >
             <div class="min-w-0">
               <div class="text-[11px] font-black text-muted-foreground leading-none">#{{ index + 1 }}</div>
@@ -40,7 +49,7 @@
           </div>
         </div>
         <button
-          v-if="category.rows.length > DEFAULT_LIMIT"
+          v-if="!compact && category.rows.length > rowLimit"
           type="button"
           class="w-full px-4 py-2.5 text-xs font-bold text-primary bg-white border-t-2 border-border hover:bg-muted/30 transition-colors flex items-center justify-center gap-1.5"
           @click="toggleExpanded(category.key)"
@@ -51,7 +60,7 @@
           </template>
           <template v-else>
             <i class="pi pi-chevron-down text-[10px]" />
-            +{{ category.rows.length - DEFAULT_LIMIT }} weitere
+            +{{ category.rows.length - rowLimit }} weitere
           </template>
         </button>
       </section>
@@ -88,19 +97,37 @@ interface Category {
   detail: (row: LeaderboardRow) => string
 }
 
-const props = defineProps<{
-  title: string
-  rows: LeaderboardRow[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    title: string
+    rows: LeaderboardRow[]
+    /**
+     * Public TV layout: force a 3×3 grid (no responsive breakpoints),
+     * show only the top 3 rows per category, hide the expander, and
+     * tighten row heights so all nine cards fit on a TV screen.
+     */
+    compact?: boolean
+  }>(),
+  { compact: false }
+)
 
-const DEFAULT_LIMIT = 5
+const rowLimit = computed(() => (props.compact ? 3 : 5))
+const gridClass = computed(() =>
+  props.compact
+    ? 'grid gap-3 sm:gap-4 grid-cols-3'
+    : 'grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+)
 
 const expanded = ref<Record<string, boolean>>({})
 const toggleExpanded = (key: string) => {
   expanded.value[key] = !expanded.value[key]
 }
-const visibleRows = (category: Category) =>
-  expanded.value[category.key] ? category.rows : category.rows.slice(0, DEFAULT_LIMIT)
+const visibleRows = (category: Category) => {
+  if (props.compact) return category.rows.slice(0, rowLimit.value)
+  return expanded.value[category.key]
+    ? category.rows
+    : category.rows.slice(0, rowLimit.value)
+}
 
 const byName = (a: LeaderboardRow, b: LeaderboardRow) => a.name.localeCompare(b.name, 'de-CH')
 const sortDesc = (selector: (row: LeaderboardRow) => number) =>
