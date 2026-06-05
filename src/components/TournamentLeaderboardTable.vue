@@ -17,10 +17,7 @@
         :key="category.key"
         class="rounded-2xl border-2 border-border bg-muted/20 overflow-hidden"
       >
-        <div
-          class="bg-white border-b-2 border-border"
-          :class="compact ? 'px-3 py-2' : 'px-4 py-3'"
-        >
+        <div class="bg-white border-b-2 border-border px-4 py-3">
           <div class="text-sm font-black text-foreground">{{ category.title }}</div>
           <div
             v-if="!compact || category.subtitle"
@@ -33,8 +30,8 @@
           <div
             v-for="(row, index) in visibleRows(category)"
             :key="`${category.key}-${row.playerId}`"
-            class="flex items-center justify-between gap-3"
-            :class="compact ? 'px-3 h-11' : 'px-4 h-16'"
+            class="flex items-center justify-between gap-3 px-4"
+            :class="compact ? 'h-12' : 'h-16'"
           >
             <div class="min-w-0">
               <div class="text-[11px] font-black text-muted-foreground leading-none">#{{ index + 1 }}</div>
@@ -114,7 +111,7 @@ const props = withDefaults(
 const rowLimit = computed(() => (props.compact ? 3 : 5))
 const gridClass = computed(() =>
   props.compact
-    ? 'grid gap-3 sm:gap-4 grid-cols-3'
+    ? 'grid gap-5 sm:gap-7 grid-cols-3'
     : 'grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
 )
 
