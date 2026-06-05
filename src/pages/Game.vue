@@ -46,7 +46,12 @@
       </div>
 
       <div class="grid gap-3 w-full max-w-3xl mb-6">
-        <MatchPlayerStatsCard v-for="stat in matchStats" :key="stat.playerId" :stat="stat" />
+        <MatchPlayerStatsCard
+          v-for="stat in matchStats"
+          :key="stat.playerId"
+          :stat="stat"
+          :double-out="game.match?.doubleOut ?? true"
+        />
       </div>
 
       <button

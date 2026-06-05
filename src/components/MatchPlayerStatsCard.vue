@@ -32,18 +32,21 @@
       <div class="bg-dart-gold/10 rounded-xl p-4 text-center">
         <div class="text-sm font-semibold text-muted-foreground">Checkout %</div>
         <div class="text-3xl font-black text-dart-gold">
-          <!-- No attempts → either single-out match (concept doesn't
-               apply) or the player never reached a checkout. Show "—"
-               instead of a misleading 0%. -->
+          <!-- Checkout-% is now computed in BOTH single- and double-out
+               matches. "—" only shows when there were genuinely no
+               attempts (no checkout hits, no bust trying to finish). -->
           <template v-if="stat.checkoutAttempts === 0">—</template>
           <template v-else>{{ stat.checkoutRate.toFixed(0) }}%</template>
         </div>
         <div class="text-xs text-muted-foreground mt-1">
           <template v-if="stat.checkoutAttempts === 0">
-            Kein Double-Out
+            {{ doubleOut ? 'Double-Out' : 'Single-Out' }}
+          </template>
+          <template v-else-if="doubleOut">
+            {{ stat.checkoutHits }}/{{ stat.checkoutAttempts }} · Darts auf Doppel: {{ stat.doubleDarts }}
           </template>
           <template v-else>
-            {{ stat.checkoutHits }}/{{ stat.checkoutAttempts }} · Darts auf Doppel: {{ stat.doubleDarts }}
+            {{ stat.checkoutHits }}/{{ stat.checkoutAttempts }} · Single-Out
           </template>
         </div>
       </div>
@@ -73,7 +76,16 @@
 <script setup lang="ts">
 import type { MatchPlayerSummary } from '@/domain/matchSummary'
 
-defineProps<{
-  stat: MatchPlayerSummary
-}>()
+withDefaults(
+  defineProps<{
+    stat: MatchPlayerSummary
+    /** Whether the match the stat was recorded in used double-out
+     *  rules. Drives the small mode chip under the Checkout-% tile
+     *  and whether the "Darts auf Doppel" detail is rendered.
+     *  Defaults to `true` for backwards compatibility with callers
+     *  that pre-date the single/double-out distinction. */
+    doubleOut?: boolean
+  }>(),
+  { doubleOut: true }
+)
 </script>

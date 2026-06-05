@@ -60,7 +60,12 @@
         Für dieses Match sind noch keine Statistiken verfügbar.
       </div>
       <div v-else class="grid gap-4">
-        <MatchPlayerStatsCard v-for="stat in match.stats" :key="stat.playerId" :stat="stat" />
+        <MatchPlayerStatsCard
+          v-for="stat in match.stats"
+          :key="stat.playerId"
+          :stat="stat"
+          :double-out="match.doubleOut"
+        />
       </div>
     </div>
   </div>

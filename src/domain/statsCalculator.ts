@@ -28,47 +28,45 @@ export interface MatchPlayerStats {
   bestLegDarts: number
 }
 
-// Checkout-% is only a meaningful skill metric in double-out matches:
-// the player has to land on a specific double to finish the leg, so
-// "attempts" and "hits" measure something real. In single-out matches
-// any dart that drops the remaining score to 0 wins the leg, so the
-// concept doesn't apply — counting them would yield misleading numbers
-// like "0% on 0/3" for a player who never aimed at a double in the
-// first place. Pass `doubleOut` and the calculator returns zero
-// checkout counters when the match wasn't played to a double, which
-// the UI then renders as "—" instead of "0%".
+// Checkout-% is a meaningful skill metric in BOTH single-out and
+// double-out matches: it measures how often the player closed a leg
+// when they were in finishable territory. We count an attempt the
+// same way in both modes (see `isCheckoutAttempt` below); only the
+// "Darts auf Doppel" detail (= number of darts spent in the
+// single-dart-double zone) is gated on `doubleOut`, because that
+// breakdown only makes sense when a double is required.
 
 /**
- * A turn only counts as a "checkout attempt" if the player
- * demonstrably threw at a double during the visit. Without
- * per-dart data we can only know this from the turn outcome:
+ * A turn counts as a "checkout attempt" when there's evidence the
+ * player tried to finish the leg on that visit:
  *
- *  - checkoutHit  → they hit a double to finish the leg.
- *  - bust && startedScore ≤ 170 → they tried to finish and went
- *    over (e.g. on 32 they aimed D16, hit S16, then tried to
- *    finish on a different double and overshot).
+ *  - checkoutHit  → they hit it (the leg-winning dart).
+ *  - bust && startedScore ≤ 170 → they tried to finish and went over
+ *    (in double-out: aimed a double and overshot; in single-out:
+ *    aimed at a sector that would have closed the leg and bust the
+ *    remaining-1 / negative-remaining check).
  *
- * Plain low-scoring visits ("72 remaining → scored 5") are NOT
- * counted, which matches the standard pro-darts definition. Before
- * this fix the calculator counted every visit with startedScore ≤ 170
- * as an attempt, so a player's checkout-% dropped after a setup-only
- * scoring visit even though no double was thrown — the bug the user
- * reported (29% → 25% after scoring 5 from a 72 rest).
+ * Plain low-scoring setup visits ("72 remaining → scored 5") are NOT
+ * counted in either mode, matching the standard pro-darts notion
+ * that the player must have actually engaged with a closing attempt.
  */
 const isCheckoutAttempt = (turn: Turn): boolean => {
   if (turn.checkoutHit) return true
   if (turn.bust && turn.startedScore <= 170) return true
   return false
 }
-export const calculateBasicStats = (turns: Turn[], doubleOut = true): BasicStats => {
+// The `doubleOut` parameter is still accepted by both functions for
+// API compatibility, but it only affects the `doubleDarts` counter
+// (which is a double-out-specific breakdown). Checkout %, attempts
+// and hits are computed identically in both modes.
+export const calculateBasicStats = (turns: Turn[], _doubleOut = true): BasicStats => {
+  void _doubleOut
   const totalPoints = turns.reduce((sum, turn) => sum + (turn.bust ? 0 : turn.points), 0)
   const totalDarts = turns.reduce((sum, turn) => sum + turn.dartsThrown, 0)
   const average3Dart = totalDarts === 0 ? 0 : (totalPoints / totalDarts) * 3
   const highestScore = turns.reduce((max, turn) => Math.max(max, turn.points), 0)
-  const checkoutAttempts = doubleOut
-    ? turns.filter(isCheckoutAttempt).length
-    : 0
-  const checkoutHits = doubleOut ? turns.filter((turn) => turn.checkoutHit).length : 0
+  const checkoutAttempts = turns.filter(isCheckoutAttempt).length
+  const checkoutHits = turns.filter((turn) => turn.checkoutHit).length
   const checkoutPercentage = checkoutAttempts === 0 ? 0 : checkoutHits / checkoutAttempts
   const highestCheckout = turns.reduce((max, turn) => Math.max(max, turn.checkoutValue ?? 0), 0)
 
@@ -88,13 +86,13 @@ export const calculateMatchPlayerStats = (turns: Turn[], doubleOut = true): Matc
   const totalPoints = turns.reduce((sum, turn) => sum + (turn.bust ? 0 : turn.points), 0)
   const totalDarts = turns.reduce((sum, turn) => sum + turn.dartsThrown, 0)
   const average = totalDarts === 0 ? 0 : (totalPoints / totalDarts) * 3
-  // Single-out → no checkout-% (see header comment). doubleDarts counts
-  // darts thrown in the double-zone score range (≤40 or =50); also
-  // meaningless without a double-out rule, so we zero it out too.
-  const checkoutAttempts = doubleOut
-    ? turns.filter(isCheckoutAttempt).length
-    : 0
-  const checkoutHits = doubleOut ? turns.filter((turn) => turn.checkoutHit).length : 0
+  // Checkout-% applies to BOTH modes (see isCheckoutAttempt header).
+  // doubleDarts is a double-out-specific breakdown of how many darts
+  // were spent in the single-dart-double zone (≤40 or =50); it stays
+  // zeroed out for single-out matches because the concept doesn't
+  // apply there.
+  const checkoutAttempts = turns.filter(isCheckoutAttempt).length
+  const checkoutHits = turns.filter((turn) => turn.checkoutHit).length
   const checkoutRate = checkoutAttempts === 0 ? 0 : (checkoutHits / checkoutAttempts) * 100
   const doubleDarts = doubleOut
     ? turns.reduce((sum, turn) => {
