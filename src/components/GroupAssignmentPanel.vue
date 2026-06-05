@@ -147,10 +147,7 @@
       </div>
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-      <div class="text-xs text-muted-foreground">
-        Beispiel Gümmi Masters: Gruppen mit 4 und 5 Spielern sind möglich.
-      </div>
+    <div class="flex flex-wrap items-center justify-end gap-3 pt-1">
       <button
         v-if="showGenerateButton"
         type="button"
