@@ -114,7 +114,7 @@
 
         <!-- Schedule panel -->
         <section v-else-if="activePanel === 'schedule'" class="space-y-5 sm:space-y-7">
-          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">Nächste Paarungen</h2>
+          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">Paarungen</h2>
           <div v-if="nextPairings.length === 0" class="text-slate-500 text-xl py-12">
             Keine offenen Spiele.
           </div>
@@ -122,7 +122,8 @@
             <li
               v-for="match in nextPairings"
               :key="match.id"
-              class="bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 sm:px-7 sm:py-5 flex items-center justify-between gap-4"
+              class="bg-slate-900 border rounded-2xl px-5 py-4 sm:px-7 sm:py-5 flex items-center justify-between gap-4"
+              :class="match.status === 'in_progress' ? 'border-emerald-500/60' : 'border-slate-800'"
             >
               <div class="min-w-0">
                 <div class="text-2xl sm:text-4xl font-black truncate">
@@ -136,8 +137,13 @@
                   · Runde {{ match.round }}
                 </div>
               </div>
-              <div class="shrink-0 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500">
-                offen
+              <div
+                class="shrink-0 text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded-full px-3 py-1"
+                :class="match.status === 'in_progress'
+                  ? 'bg-emerald-500/15 text-emerald-300'
+                  : 'bg-slate-800 text-slate-400'"
+              >
+                {{ match.status === 'in_progress' ? 'läuft' : 'bereit' }}
               </div>
             </li>
           </ul>
@@ -455,16 +461,34 @@ const showFinalStandings = computed(
   () => mode.value === 'round_robin' && groupCount.value > 1 && finalStandings.value.length > 0
 )
 
-const nextPairings = computed(() =>
-  rawMatches.value
-    .filter((m) => m.status === 'pending')
+// One pairing per (phase, group). Prefer an in-progress match; otherwise
+// fall back to the earliest pending one. Finished groups contribute nothing.
+// Knockout matches without a group_index get bucketed by round so each KO
+// round contributes its currently-relevant pairing too.
+const nextPairings = computed(() => {
+  const buckets = new Map<string, RawMatch>()
+  const candidates = rawMatches.value
+    .filter((m) => m.status !== 'finished')
     .sort((a, b) => {
-      if (a.phase !== b.phase) return a.phase === 'round_robin' ? -1 : 1
+      if (a.status !== b.status) return a.status === 'in_progress' ? -1 : 1
       if (a.round !== b.round) return a.round - b.round
       return a.order - b.order
     })
-    .slice(0, 8)
-)
+  candidates.forEach((m) => {
+    const bucketKey =
+      m.phase === 'knockout'
+        ? `ko:round-${m.round}`
+        : `rr:${m.group_index ?? 0}`
+    if (!buckets.has(bucketKey)) buckets.set(bucketKey, m)
+  })
+  return Array.from(buckets.values()).sort((a, b) => {
+    if (a.phase !== b.phase) return a.phase === 'round_robin' ? -1 : 1
+    if (a.phase === 'round_robin') {
+      return (a.group_index ?? 0) - (b.group_index ?? 0)
+    }
+    return a.round - b.round
+  })
+})
 
 const knockoutMatches = computed<TournamentMatch[]>(() =>
   matchesAsDomain.value.filter((m) => m.phase === 'knockout')
