@@ -66,20 +66,46 @@
           </div>
         </section>
 
-        <!-- Standings panel -->
-        <section v-else-if="activePanel === 'standings'" class="space-y-5 sm:space-y-7">
-          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">Tabelle</h2>
+        <!-- Standings panel (paginated: typically 2 groups per page) -->
+        <section v-else-if="activeStandingsPage" class="space-y-5 sm:space-y-7">
+          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">
+            Tabelle
+            <span v-if="activeStandingsPage.subtitle" class="text-slate-500 font-bold">
+              · {{ activeStandingsPage.subtitle }}
+            </span>
+          </h2>
+          <!-- Qualifier legend mirrors the admin UI when relevant -->
+          <div
+            v-if="hasWildcardQualifiers && mode === 'combined'"
+            class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm font-semibold text-slate-400"
+          >
+            <span class="inline-flex items-center gap-2">
+              <span class="h-4 w-1 rounded-full bg-emerald-500 shrink-0" />
+              Direkte Qualifikation
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <span class="h-4 w-1 rounded-full bg-amber-400 shrink-0" />
+              {{ wildcardLegend }}
+            </span>
+          </div>
           <div class="public-card-light space-y-5">
             <TournamentStandingsTable
-              v-for="group in groupStandingsList"
+              v-for="group in activeStandingsPage.groups"
               :key="group.index"
               :title="group.title"
               :rows="group.rows"
               :player-name="playerName"
+              :qualifier-status="qualifiedPlayerStatus"
             />
+          </div>
+        </section>
+
+        <!-- Final standings (round_robin with multiple groups) -->
+        <section v-else-if="activePanel === 'final-standings'" class="space-y-5 sm:space-y-7">
+          <h2 class="text-3xl sm:text-5xl font-black tracking-tight">Schlussrangliste</h2>
+          <div class="public-card-light">
             <TournamentStandingsTable
-              v-if="showFinalStandings"
-              title="Schlussrangliste"
+              title="Gesamt"
               :rows="finalStandings"
               :player-name="playerName"
             />
@@ -161,6 +187,7 @@ import TournamentLeaderboardTable from '@/components/TournamentLeaderboardTable.
 import TournamentBracket from '@/components/TournamentBracket.vue'
 import PublicLiveMatchCard from '@/components/PublicLiveMatchCard.vue'
 import { calculateLeaderboardsFromData, calculateStandingsFromData } from '@/domain/tournamentStats'
+import { computeQualifiers } from '@/domain/knockoutSeeding'
 import type {
   Tournament,
   TournamentMatch,
@@ -172,6 +199,9 @@ const route = useRoute()
 
 const REFRESH_MS = 5_000
 const ROTATE_MS = 12_000
+const GROUPS_PER_STANDINGS_PAGE = 2
+
+type QualifierStatus = 'direct' | 'wildcard'
 
 interface RawMatch {
   id: string
@@ -224,7 +254,7 @@ const lastUpdated = ref<Date | null>(null)
 const loadError = ref(false)
 const rotationPaused = ref(false)
 
-const activePanel = ref<'live' | 'standings' | 'schedule' | 'bracket' | 'top'>('live')
+const activePanel = ref<string>('live')
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 let rotateTimer: ReturnType<typeof setInterval> | null = null
@@ -260,7 +290,7 @@ const groupCount = computed(() => {
 })
 
 const groupLabel = (groupIndex: number) =>
-  String.fromCharCode(65 + groupIndex) // 0 → A, 1 → B
+  String.fromCharCode(65 + groupIndex) // 0 → A, 1 → B, …
 
 const matchesAsDomain = computed<TournamentMatch[]>(() =>
   rawMatches.value.map((m) => ({
@@ -289,18 +319,26 @@ const resultsAsDomain = computed<TournamentMatchResult[]>(() =>
   }))
 )
 
-const groupStandingsList = computed(() => {
+interface GroupStanding {
+  index: number
+  title: string
+  rows: ReturnType<typeof calculateStandingsFromData>
+  isFinished: boolean
+}
+
+const groupStandingsList = computed<GroupStanding[]>(() => {
   if (!hasGroups.value) return []
-  const list: Array<{
-    index: number
-    title: string
-    rows: ReturnType<typeof calculateStandingsFromData>
-  }> = []
+  const list: GroupStanding[] = []
   for (let i = 0; i < groupCount.value; i += 1) {
     const playerIds = rawPlayers.value
       .filter((p) => (p.group_index ?? 0) === i)
       .map((p) => p.player_id)
     if (playerIds.length === 0) continue
+    const groupMatches = rawMatches.value.filter(
+      (m) => m.phase === 'round_robin' && (m.group_index ?? 0) === i
+    )
+    const isFinished =
+      groupMatches.length > 0 && groupMatches.every((m) => m.status === 'finished')
     const rows = calculateStandingsFromData({
       playerIds,
       matches: matchesAsDomain.value,
@@ -311,10 +349,95 @@ const groupStandingsList = computed(() => {
     list.push({
       index: i,
       title: groupCount.value > 1 ? `Gruppe ${groupLabel(i)}` : 'Rangliste',
-      rows
+      rows,
+      isFinished
     })
   }
   return list
+})
+
+const allGroupsFinished = computed(
+  () => groupStandingsList.value.length > 0 && groupStandingsList.value.every((g) => g.isFinished)
+)
+
+const bracketSize = computed(() => tournament.value?.settings?.koBracketSize ?? 0)
+
+const baseQualifiers = computed(() =>
+  bracketSize.value > 0 ? Math.floor(bracketSize.value / Math.max(1, groupCount.value)) : 2
+)
+
+const qualifiedPlayerStatus = computed<Record<string, QualifierStatus>>(() => {
+  if (mode.value !== 'combined') return {}
+  const standingsByGroup = new Map<number, ReturnType<typeof calculateStandingsFromData>>()
+  groupStandingsList.value.forEach((entry) => standingsByGroup.set(entry.index, entry.rows))
+
+  const qualifiers = computeQualifiers({
+    bracketSize: bracketSize.value,
+    groupCount: groupCount.value,
+    standingsByGroup
+  })
+
+  const status: Record<string, QualifierStatus> = {}
+  qualifiers.forEach((q) => {
+    status[q.playerId] = q.rankInGroup <= baseQualifiers.value ? 'direct' : 'wildcard'
+  })
+
+  // Wildcard cusp preview while the group phase is still in progress:
+  // colour every rank-(baseQualifiers+1) player gold so spectators see
+  // who is currently in line. Once all groups are done, only the
+  // qualifiers that computeQualifiers actually returned stay gold.
+  if (!allGroupsFinished.value) {
+    const cuspRank = baseQualifiers.value + 1
+    groupStandingsList.value.forEach((entry) => {
+      const cuspRow = entry.rows[cuspRank - 1]
+      if (cuspRow && status[cuspRow.playerId] === undefined) {
+        status[cuspRow.playerId] = 'wildcard'
+      }
+    })
+  }
+
+  return status
+})
+
+const hasWildcardQualifiers = computed(() =>
+  Object.values(qualifiedPlayerStatus.value).some((status) => status === 'wildcard')
+)
+
+const wildcardLegend = computed(() => {
+  if (bracketSize.value <= 0) return 'Wildcard'
+  const remaining = bracketSize.value - baseQualifiers.value * groupCount.value
+  if (remaining <= 0) return 'Wildcard'
+  if (baseQualifiers.value === 2) {
+    return `Beste ${remaining} Gruppendritte`
+  }
+  return `Beste ${remaining} Wildcards`
+})
+
+interface StandingsPage {
+  key: string
+  subtitle: string
+  groups: GroupStanding[]
+}
+
+const standingsPages = computed<StandingsPage[]>(() => {
+  const groups = groupStandingsList.value
+  if (groups.length === 0) return []
+  const pages: StandingsPage[] = []
+  for (let i = 0; i < groups.length; i += GROUPS_PER_STANDINGS_PAGE) {
+    const slice = groups.slice(i, i + GROUPS_PER_STANDINGS_PAGE)
+    const labels = slice.map((g) => groupLabel(g.index)).join(' + ')
+    pages.push({
+      key: `standings:${i}`,
+      subtitle: groups.length > 1 ? `Gruppe ${labels}` : '',
+      groups: slice
+    })
+  }
+  return pages
+})
+
+const activeStandingsPage = computed<StandingsPage | null>(() => {
+  if (!activePanel.value.startsWith('standings:')) return null
+  return standingsPages.value.find((p) => p.key === activePanel.value) ?? null
 })
 
 const finalStandings = computed(() => {
@@ -387,10 +510,11 @@ const lastUpdatedLabel = computed(() => {
   return lastUpdated.value.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 })
 
-const availablePanels = computed<Array<'live' | 'standings' | 'schedule' | 'bracket' | 'top'>>(() => {
-  const list: Array<'live' | 'standings' | 'schedule' | 'bracket' | 'top'> = []
+const availablePanels = computed<string[]>(() => {
+  const list: string[] = []
   if (liveSnapshots.value.length > 0) list.push('live')
-  if (hasGroups.value && groupStandingsList.value.length > 0) list.push('standings')
+  standingsPages.value.forEach((p) => list.push(p.key))
+  if (showFinalStandings.value) list.push('final-standings')
   if (nextPairings.value.length > 0) list.push('schedule')
   if (hasKnockout.value && knockoutMatches.value.length > 0) list.push('bracket')
   if (leaderboardRows.value.length > 0) list.push('top')
